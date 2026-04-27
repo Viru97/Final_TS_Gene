@@ -21,11 +21,6 @@ data and helps identify faults that may pose risks in human-robot collaboration 
 simulation tool enables fast and safe deployment for other robot-related research areas, e.g., deep learning-based
 anomaly detection, failure prediction, and risk assessment.
 
-## Citation
-Y. Ma, Z. Jin, Q. Liu, I. Mamaev and A. Morozov, "Deep Learning-based Proactive Hazard Prediction for Human-Robot Collaboration with Sensor Malfunctions," 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), Hangzhou, China, 2025, pp. 6328-6335, doi: 10.1109/IROS60139.2025.11246277.
-
-
-
 'roslaunch panda_gazebo start_workscene.launch' for drilling world launch.
 'roslaunch panda_gazebo start_workscene_welding.launch' for welding launch
 
