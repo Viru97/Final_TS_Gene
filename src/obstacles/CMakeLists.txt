@@ -1,52 +1,46 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.8)
 project(obstacles)
 
-## Add support for C++17, supported in ROS Kinetic and newer
-add_definitions(-std=c++17)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(catkin REQUIRED COMPONENTS
-  roscpp  
-  std_msgs
-  geometry_msgs
-  custom_robot_msgs
-  gazebo_ros
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -std=c++17)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(custom_robot_msgs REQUIRED)
+
+include_directories(includes)
+
+# Install simulation assets (Gazebo models, worlds, animations, launch files)
+install(
+  DIRECTORY animations launch models worlds
+  DESTINATION share/${PROJECT_NAME}
 )
 
-find_package(LibXml2 REQUIRED)
-include_directories(${LIBXML2_INCLUDE_DIR})
+# ==============================================================================
+# --- WE WILL UNCOMMENT THESE LATER ONCE WE MIGRATE THE C++ CODE TO RCLCPP ---
+# ==============================================================================
 
-find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIRS})
+# add_executable(stick src/stick.cc)
+# ament_target_dependencies(stick rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
+# install(TARGETS stick DESTINATION lib/${PROJECT_NAME})
 
-find_package(gazebo REQUIRED)
-link_directories(${GAZEBO_LIBRARY_DIRS})
-include_directories(
-  includes
-  ${Boost_INCLUDE_DIR} 
-  ${catkin_INCLUDE_DIRS} 
-  ${GAZEBO_INCLUDE_DIRS}
-)
+# add_executable(cv_model src/cv_model.cc)
+# ament_target_dependencies(cv_model rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
+# install(TARGETS cv_model DESTINATION lib/${PROJECT_NAME})
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
+# add_executable(kf_model src/kf_model.cc)
+# ament_target_dependencies(kf_model rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
+# install(TARGETS kf_model DESTINATION lib/${PROJECT_NAME})
 
-catkin_package(
-  #INCLUDE_DIRS ${GAZEBO_INCLUDE_DIRS}
-  #LIBRARIES obstacles ${GAZEBO_LIBRARY_DIRS}
-  CATKIN_DEPENDS geometry_msgs roscpp std_msgs custom_robot_msgs
-  DEPENDS gazebo_ros system_lib
-)
+# add_executable(motion_capture src/motion_capture.cc)
+# ament_target_dependencies(motion_capture rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
+# install(TARGETS motion_capture DESTINATION lib/${PROJECT_NAME})
 
-add_library(cv_sphere SHARED src/cv_sphere.cc)
-add_library(kalman_filter includes/obstacles/cv_model.h src/cv_model.cc includes/obstacles/kf_model.h src/kf_model.cc)
-target_link_libraries(cv_sphere ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} kalman_filter)
-
-add_library(stick SHARED includes/obstacles/stick.h src/stick.cc)
-target_link_libraries(stick ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
-
-# add_library(motion_capture SHARED includes/obstacles/motion_capture.h includes/obstacles/skeleton_node.h
-#     src/motion_capture.cc)
-# add_dependencies(motion_capture ${catkin_EXPORTED_TARGETS})
-# target_link_libraries(motion_capture ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} ${LIBXML2_LIBRARIES})
-
-# target_link_libraries(motion_capture stdc++fs)
+ament_package()
