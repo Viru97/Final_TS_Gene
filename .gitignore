@@ -1,0 +1,111 @@
+# ============================
+# ROS / Catkin build artifacts
+# ============================
+build/
+devel/
+install/
+log/
+.catkin_workspace
+.catkin_tools/
+
+# ============================
+# Generated ROS message files
+# ============================
+msg_gen/
+srv_gen/
+*_msgs/msg/*Action.msg
+*_msgs/msg/*ActionFeedback.msg
+*_msgs/msg/*ActionGoal.msg
+*_msgs/msg/*ActionResult.msg
+*_msgs/msg/*Feedback.msg
+*_msgs/msg/*Goal.msg
+*_msgs/msg/*Result.msg
+msg/_*.py
+srv/_*.py
+
+# ============================
+# Dynamic reconfigure
+# ============================
+*.cfgc
+cfg/cpp/
+cfg/*.py
+
+# ============================
+# Python
+# ============================
+*.pyc
+*.pyo
+__pycache__/
+.eggs/
+*.egg-info/
+
+# ============================
+# C/C++ build outputs
+# ============================
+*.o
+*.so
+*.so.*
+*.a
+*.out
+
+# ============================
+# CMake
+# ============================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+
+# ============================
+# Data and large binary files
+# ============================
+data/
+src.zip
+*.bag
+*.bag.active
+*.csv
+
+# ============================
+# IDE / Editor files
+# ============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.#*
+*.user
+CMakeLists.txt.user
+qtcreator-*
+.project
+.cproject
+
+# ============================
+# OS files
+# ============================
+.DS_Store
+Thumbs.db
+
+# ============================
+# Documentation
+# ============================
+*.dox
+*.wikidoc
+_build/
+_autosummary/
+
+# ============================
+# Misc
+# ============================
+.moveit_ci
+*.gdb
+~$
+
+# ============================
+# ROS workspace files inside src/
+# ============================
+src/ws_moveit/.catkin_workspace
+src/ws_moveit/.catkin_tools/
+src/ws_moveit/.rosinstall
+src/ws_moveit/.rosinstall.bak
