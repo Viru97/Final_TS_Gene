@@ -1,3 +1,3 @@
-Header header
+std_msgs/Header header
 custom_robot_msgs/CapsuleArray robot_capsules
 custom_robot_msgs/PolycapsuleArray human_sets
