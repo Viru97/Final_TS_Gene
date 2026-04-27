@@ -1,0 +1,7 @@
+fault_duration_min: 15
+fault_duration_max: 15
+fault_amplitude_min: 1
+fault_amplitude_max: 1
+joint_names:
+  - panda_joint1
+

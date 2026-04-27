@@ -1,0 +1,57 @@
+site_name: Badgers Documentation
+site_url: https://github.com/Fraunhofer-IESE/badgers
+repo_url: https://github.com/Fraunhofer-IESE/badgers
+repo_name: Fraunhofer-IESE/badgers
+
+nav:
+    -   Home: index.md
+    -   Getting started: getting-started.md
+    -   About: about.md
+    -   Changes: changelog.md
+    -   Tutorials:
+            -   Tabular Data:
+                    -   Generating Imbalanced Data: tutorials/tabular-data/Imbalance-Tabular-Data.ipynb
+                    -   Generating Missing Data: tutorials/tabular-data/Missingness-Tabular-Data.ipynb
+                    -   Generating Noise: tutorials/tabular-data/Noise-Tabular-Data.ipynb
+                    -   Generating Outliers: tutorials/tabular-data/Outliers-Tabular-Data.ipynb
+            -   Text Data:
+                    -   Generating Typos: tutorials/text/Typos-Text.ipynb
+            -   Time Series Data:
+                    -   Generating Point Outliers: tutorials/time-series/Outliers-Time-Series.ipynb
+                    -   Generating Missing Data: tutorials/time-series/Missingness-Time-Series.ipynb
+                    -   Generating Noise: tutorials/time-series/Noise-Time-Series.ipynb
+                    -   Generating Patterns: tutorials/time-series/Patterns-Time-Series.ipynb
+                    -   Generating Trends: tutorials/time-series/Trends-Time-Series.ipynb
+                    -   Generating Seasons: tutorials/time-series/Seasons-Time-Series.ipynb
+                    -   Generating Changepoints: tutorials/time-series/Changepoints-Time-Series.ipynb
+                    -   Generating "Transmissions Errors": tutorials/time-series/Transmission-Errors-Time-Series.ipynb
+            -   Pipelines:
+                    -   Chaining Generators: tutorials/Pipeline-Tabular-Data.ipynb
+            -   Implementing Novel Generators:
+                    -   Creating Tabular Generators: dev/Create-New-Tabular-Generators.ipynb
+    -   API: reference/
+
+theme:
+    name: material
+    features:
+        - navigation.sections
+        - navigation.indexes
+        - navigation.instant
+
+plugins:
+    - search
+    -   gen-files:
+            scripts:
+                - docs/gen_ref_pages.py
+    -   literate-nav:
+            nav_file: SUMMARY.md
+    -   mkdocstrings:
+            handlers:
+                python:
+                    options:
+                        show_source: true
+                    selection:
+                        docstring_style: sphinx
+    - mkdocs-jupyter
+watch:
+    - ../badgers

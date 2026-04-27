@@ -1,0 +1,47 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/baua/Final_TS_Gene/devel/include/**",
+        "/home/baua/Final_TS_Gene/devel/include/**",
+        "/opt/openrobots/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_planners/chomp/chomp_motion_planner/include/**",
+        "/home/baua/Final_TS_Gene/src/franka_ros-0.9.1/franka_control/include/**",
+        "/home/baua/Final_TS_Gene/src/franka_ros-0.9.1/franka_example_controllers/include/**",
+        "/home/baua/Final_TS_Gene/src/franka_ros-0.9.1/franka_gazebo/include/**",
+        "/home/baua/Final_TS_Gene/src/franka_ros-0.9.1/franka_gripper/include/**",
+        "/home/baua/Final_TS_Gene/src/franka_ros-0.9.1/franka_hw/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/geometric_shapes/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_planners/chomp/chomp_interface/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit_resources/prbt_ikfast_manipulator_plugin/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_ros/benchmarks/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_plugins/moveit_ros_control_interface/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_ros/move_group/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_ros/occupancy_map_monitor/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_ros/robot_interaction/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_ros/moveit_servo/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_setup_assistant/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_plugins/moveit_simple_controller_manager/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit_visual_tools/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_planners/pilz_industrial_motion_planner/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_planners/pilz_industrial_motion_planner_testutils/include/**",
+        "/home/baua/Final_TS_Gene/src/rosparam_shortcuts/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/rviz_visual_tools/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/moveit/moveit_planners/sbpl/core/sbpl_interface/include/**",
+        "/home/baua/Final_TS_Gene/src/ws_moveit/srdfdom/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

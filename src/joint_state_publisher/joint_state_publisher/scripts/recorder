@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+import rospy
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Int32
+from std_msgs.msg import Float32, String
+from joint_state_publisher.msg import RecorderMsg
+
+joint_index = None
+fault_amplitude = None
+fault_duration = None
+fault_location = None
+start_time = None
+fault_name = None
+
+index_flag = False
+amplitude_flag = False
+duration_flag = False
+time_flag = False
+name_flag = False
+
+class RecorderNode:
+    def __init__(self):
+        rospy.init_node('recorder')
+
+        self.virtual_joint_states = None
+        self.real_joint_states = None
+        # self.action_states = None
+        self.fault_flag = None
+        # self.planner_flag = None
+        self.distance_monitoring_hand1 = None
+        self.distance_monitoring_hand2 = None
+        self.safety_violation = None
+        self.fault_presence = None
+        rospy.Subscriber('/faulty_joint_states', JointState, self.virtual_joint_states_callback)
+        rospy.Subscriber('/joint_states', JointState, self.real_joint_states_callback)
+        # rospy.Subscriber('/action_states', Int32, self.action_states_callback)
+        rospy.Subscriber('/fault_flag', Int32, self.fault_flag_callback)
+        # rospy.Subscriber('/planner_flag', Int32, self.planner_flag_callback)
+        rospy.Subscriber('/distance_between_end_effector_and_hand1', Float32, self.distance_monitoring_hand1_callback)
+        rospy.Subscriber('/distance_between_end_effector_and_hand2', Float32, self.distance_monitoring_hand2_callback)
+        rospy.Subscriber('/safety_violation', Int32, self.safety_violation_callback)
+
+        rospy.Subscriber('/fault_time', Float32, self.fault_time, queue_size=100)
+        rospy.Subscriber('/fault_index', Int32, self.fault_index, queue_size=100)
+        rospy.Subscriber('/fault_amplitude', Float32, self.fault_ampli,queue_size=100)
+        rospy.Subscriber('/fault_duration', Float32, self.fault_dura, queue_size=100)
+        rospy.Subscriber('/fault_type', Int32, self.fault_type, queue_size=100)
+        rospy.Subscriber('/fault_presence', String, self.status, queue_size=100)
+
+        self.pub = rospy.Publisher('/record', RecorderMsg, queue_size=100)
+        
+        self.timer = rospy.Timer(rospy.Duration(0.02), self.combine_data)
+
+    def fault_index(self,msg):
+        global fault_location, index_flag
+        fault_location = int(msg.data)+1
+        index_flag = True
+
+
+    def fault_ampli(self,msg):
+        global fault_amplitude, amplitude_flag
+        fault_amplitude = float(msg.data)
+        amplitude_flag = True
+
+
+    def fault_dura(self,msg):
+        global fault_duration, duration_flag
+        fault_duration = float(msg.data)
+        duration_flag=True
+
+
+    def fault_time(self,msg):
+        global start_time, time_flag
+        start_time = float(msg.data)
+        time_flag = True
+
+    def status(self,msg):
+        self.fault_presence = str(msg.data)
+
+    def fault_type(self,msg):
+        global fault_name, name_flag
+        # fault_name = int(msg.data)
+        if int(msg.data)== 1:
+            fault_name = 'Bias'
+        elif int(msg.data) == 2:
+            fault_name = 'Noise'
+        name_flag = True
+
+    def virtual_joint_states_callback(self, data):
+        self.virtual_joint_states = data
+
+    def real_joint_states_callback(self, data):
+        self.real_joint_states = data
+
+    def action_states_callback(self, data):
+        self.action_states = data
+
+    def fault_flag_callback(self, data):
+        self.fault_flag = data
+
+    def planner_flag_callback(self, data):
+        self.planner_flag = data
+
+    def distance_monitoring_hand1_callback(self, data):
+        self.distance_monitoring_hand1 = data
+
+    def distance_monitoring_hand2_callback(self, data):
+        self.distance_monitoring_hand2 = data
+
+    def safety_violation_callback(self, data):
+        self.safety_violation = data
+
+
+    def combine_data(self, event):
+        global fault_duration, fault_amplitude, fault_location, fault_name, start_time
+        combined_msg = RecorderMsg()
+        
+        # Check faulty and normal joint states
+        if self.virtual_joint_states is not None:
+            combined_msg.virtual_joint_states = self.virtual_joint_states
+        else:
+            rospy.logwarn("virtual_joint_states is None")
+
+        if self.real_joint_states is not None:
+            combined_msg.real_joint_states = self.real_joint_states
+        else:
+            rospy.logwarn("real_joint_states is None")
+        
+        # Set fault_flag if not None, otherwise default to Int32(0)
+        combined_msg.fault_flag = self.fault_flag if self.fault_flag is not None else Int32(data=0)
+        
+        # Set distance monitoring data, default to Float32(0.0) if None
+        combined_msg.distance_monitoring_hand1 = self.distance_monitoring_hand1 if self.distance_monitoring_hand1 is not None else Float32(data=0.0)
+        combined_msg.distance_monitoring_hand2 = self.distance_monitoring_hand2 if self.distance_monitoring_hand2 is not None else Float32(data=0.0)
+        
+        # Set safety violation, default to Int32(0) if None
+        combined_msg.safety_violation = self.safety_violation if self.safety_violation is not None else Int32(data=0)
+        
+        # Set fault attributes, wrap in Float32 messages
+        combined_msg.fault_amplitude = Float32(data=fault_amplitude if fault_amplitude is not None else 0.0)
+        combined_msg.fault_duration = Float32(data=fault_duration if fault_duration is not None else 0.0)
+        combined_msg.fault_location = Int32(data=fault_location if fault_location is not None else 0)
+        combined_msg.fault_time = Float32(data=start_time if start_time is not None else 0.0)
+        
+        # Wrap fault_name in a String message
+        combined_msg.fault_type = String(data=self.fault_presence if self.fault_presence is not None else "No Fault")
+
+        self.pub.publish(combined_msg)
+        rospy.logwarn_once("Combined data published")
+
+if __name__ == '__main__':
+    try:
+        recorder_node = RecorderNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass

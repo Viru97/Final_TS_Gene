@@ -1,0 +1,12 @@
+sensor_msgs/JointState virtual_joint_states
+sensor_msgs/JointState real_joint_states
+std_msgs/Int32 fault_flag
+std_msgs/Float32 distance_monitoring_hand1
+std_msgs/Float32 distance_monitoring_hand2
+std_msgs/Int32 safety_violation
+std_msgs/Float32 fault_amplitude
+std_msgs/Float32 fault_duration
+std_msgs/Float32 fault_location
+std_msgs/Float32 fault_time
+std_msgs/String fault_type
+
