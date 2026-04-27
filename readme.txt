@@ -5,9 +5,6 @@ Yuliang Ma*, Apurv Patel, Don Kurian, Julien Siebert, Silvia Vock, and Andrey Mo
 
 This work has been accepted for publication in the Proceedings of the 35th European Safety and Reliability & the 33rd Society for Risk Analysis Europe Conference (ESREL SRA-E 2025).
 
-#<img src="/source/Hazard_demo.png" height="220" />
-#<img src="/source/framework.png" height="360" />
-
 ## Abstract
 Robotic systems increasingly rely on artificial intelligence (AI) to enhance their capabilities in performing complex
 tasks across various domains. The development and evaluation of AI systems usually require high-quality datasets.
