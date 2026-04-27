@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import subprocess
-import rospy
+import rclpy
+from rclpy.node import Node
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QStackedWidget, \
     QLineEdit, QMessageBox, QFrame, QFormLayout, QComboBox
 from PyQt5.QtGui import QPixmap, QIcon
@@ -21,6 +22,48 @@ fault_duration = Float32()
 start_time = Float32()
 # from gui.msg import MyMessage
 import threading
+
+pub = None
+pub_index = None
+pub_duration = None
+pub_amplitude = None
+pub_time = None
+sub = None
+pub_state = True
+ros_node = None
+
+
+def ros2_run_cmd(package, executable, *args):
+    return ["ros2", "run", package, executable, *args]
+
+
+def ros2_launch_cmd(package, launch_file, *args):
+    launch_name = f"{launch_file}.py" if launch_file.endswith(".launch") else launch_file
+    return ["ros2", "launch", package, launch_name, *args]
+
+
+def _ros_logger():
+    if ros_node is not None:
+        return ros_node.get_logger()
+    return rclpy.logging.get_logger("gui")
+
+
+def ros_logwarn(message):
+    _ros_logger().warning(message)
+
+
+def ros_loginfo(message):
+    _ros_logger().info(message)
+
+
+def ros_time_now():
+    if ros_node is None:
+        return time.time()
+    return ros_node.get_clock().now().nanoseconds / 1e9
+
+
+def ros_sleep(seconds):
+    time.sleep(seconds)
 
 class Logos(QWidget):
     def __init__(self):
@@ -583,7 +626,7 @@ class Gui(QMainWindow):
     def go_to_drilling_page(self):
         current_widget = self.stacked_widget.currentWidget()
         if isinstance(current_widget, DemonstratorPage):
-            self.launch_gazebo('roslaunch', 'panda_gazebo', 'start_workscene.launch')
+            self.launch_gazebo(*ros2_launch_cmd('panda_gazebo', 'start_workscene.launch'))
         self.stacked_widget.setCurrentWidget(self.pages['drilling'])
 
     def go_to_welding_page(self):
@@ -592,7 +635,7 @@ class Gui(QMainWindow):
 
         self.stacked_widget.setCurrentWidget(self.pages['welding'])
         if class_name == "DemonstratorPage":
-            self.launch_gazebo('roslaunch', 'panda_gazebo', 'start_workscene_welding.launch')    
+            self.launch_gazebo(*ros2_launch_cmd('panda_gazebo', 'start_workscene_welding.launch'))
         # else:
         #     print(f"This is not the MainPage, it's {class_name}.")
         
@@ -620,7 +663,7 @@ class Gui(QMainWindow):
 
 
     def go_to_welding_execution_page(self):
-            if self.flag:
+            if self.welding_flag:
                 self.stacked_widget.setCurrentWidget(self.pages['welding_execution'])
         
     def launch_gazebo(self, *args):
@@ -640,28 +683,28 @@ class Gui(QMainWindow):
                 self.gazebo_process = None
                 subprocess.run(['pkill', '-f', 'gzserver'], check=False)
                 subprocess.run(['pkill', '-f', 'gzclient'], check=False)
-            rospy.logwarn('Gazebo Terminated')
+            ros_logwarn('Gazebo Terminated')
 
     def randomize_geometry(self):
-        self.run_command(['rosrun', 'panda_gazebo', 'modify_geometry.py'])
-        # self.run_command(['rosrun', 'panda_gazebo', 'randomize_workpiece_position.py'])
+        self.run_command(ros2_run_cmd('panda_gazebo', 'modify_geometry.py'))
+        # self.run_command(ros2_run_cmd('panda_gazebo', 'randomize_workpiece_position.py'))
 
     def randomize_position(self):
-        # self.run_command(['rosrun', 'panda_gazebo', 'modify_geometry.py'])
-        self.run_command(['rosrun', 'panda_gazebo', 'randomize_workpiece_position.py'])
+        # self.run_command(ros2_run_cmd('panda_gazebo', 'modify_geometry.py'))
+        self.run_command(ros2_run_cmd('panda_gazebo', 'randomize_workpiece_position.py'))
 
     def randomize_holes(self):
-        self.run_command(['rosrun', 'panda_gazebo', 'randomize_hole_position.py'])
+        self.run_command(ros2_run_cmd('panda_gazebo', 'randomize_hole_position.py'))
         self.drilling_flag = True
         return self.drilling_flag
     
     def randomize_line(self):
-        self.run_command(['rosrun', 'panda_gazebo', 'randomize_welding_line.py'])
+        self.run_command(ros2_run_cmd('panda_gazebo', 'randomize_welding_line.py'))
         self.welding_flag = True
         return self.welding_flag
     
     def randomize_hands(self):
-        self.run_command(['rosrun', 'panda_gazebo', 'randomize_hand_position.py'])
+        self.run_command(ros2_run_cmd('panda_gazebo', 'randomize_hand_position.py'))
     
     def run_command(self, command):
         try:
@@ -677,7 +720,7 @@ class Gui(QMainWindow):
             try:
                 # subprocess.Popen(['rqt_plot'])
                 self.put_robot_in_gazebo = subprocess.Popen(
-                    ['roslaunch', 'panda_gazebo', 'put_robot_in_world.launch', 'load_gripper:=false', 'gripper:=drill']
+                    ros2_launch_cmd('panda_gazebo', 'put_robot_in_world.launch', 'load_gripper:=false', 'gripper:=drill')
                 )
             except subprocess.CalledProcessError as e:
                 QMessageBox.critical(self, "Error", f"Error adding robot: {e}")
@@ -690,20 +733,20 @@ class Gui(QMainWindow):
             try:
                 # subprocess.Popen(['rqt_plot'])
                 self.put_robot_in_gazebo = subprocess.Popen(
-                    ['roslaunch', 'panda_gazebo', 'put_robot_in_world.launch', 'load_gripper:=false', 'gripper:=welding']
+                    ros2_launch_cmd('panda_gazebo', 'put_robot_in_world.launch', 'load_gripper:=false', 'gripper:=welding')
                 )
             except subprocess.CalledProcessError as e:
                 QMessageBox.critical(self, "Error", f"Error adding robot: {e}")
 
     def start_drilling_execution(self):
         try:
-            self.execution_process = subprocess.Popen(['rosrun', 'pick_and_place', 'drilling.py'])
+            self.execution_process = subprocess.Popen(ros2_run_cmd('pick_and_place', 'drilling.py'))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error starting execution: {e}")
 
     def start_welding_execution(self):
             try:
-                self.execution_process = subprocess.Popen(['rosrun', 'pick_and_place', 'welding.py'])
+                self.execution_process = subprocess.Popen(ros2_run_cmd('pick_and_place', 'welding.py'))
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Error starting execution: {e}")
 
@@ -714,14 +757,14 @@ class Gui(QMainWindow):
             try:
                 self.execution_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                rospy.logwarn("Execution did not terminate gracefully, killing it forcefully")
+                ros_logwarn("Execution did not terminate gracefully, killing it forcefully")
                 self.execution_process.kill()
             finally:
                 self.execution_process = None
-            rospy.logwarn("Drilling execution terminated")
+            ros_logwarn("Drilling execution terminated")
 
         else:
-            rospy.logwarn("No execution process running.")
+            ros_logwarn("No execution process running.")
             
 
     def stop_welding_execution(self):
@@ -738,9 +781,9 @@ class Gui(QMainWindow):
                 # Ensure the process is cleaned up
                 self.execution_process = None
 
-            rospy.logwarn("Execution process terminated.")
+            ros_logwarn("Execution process terminated.")
         else:
-            rospy.logwarn("No execution process running.")
+            ros_logwarn("No execution process running.")
             
 
     def fault_generator(self):
@@ -759,7 +802,7 @@ class Gui(QMainWindow):
             self.fault_amplitude = round(random.uniform(fault_amplitude_min, fault_amplitude_max), 2)
             self.fault_location = random.choice(fault_joints)
             self.joint_index = fault_joints.index(self.fault_location)
-            self.start_time = rospy.get_time() + round(random.uniform(2 , 30))
+            self.start_time = ros_time_now() + round(random.uniform(2 , 30))
 
             fault_duration.data = self.fault_duration
             fault_amplitude .data= self.fault_amplitude
@@ -782,19 +825,28 @@ class Gui(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error generating fault: {e}")
 
-        rospy.logwarn('Fault created successfully')
+        ros_logwarn('Fault created successfully')
 
         return self.joint_index, self.fault_amplitude, self.fault_duration, self.start_time
     
     def fault_injector(self):
-        global pub_state
-        sub.unregister()
-        pub.unregister()  # Assuming pub is your publisher; define it globally if needed
+        global pub_state, sub
+        if ros_node is None:
+            QMessageBox.critical(self, "Error", "ROS 2 node is not initialized.")
+            return False
+
+        # Stop forwarding raw joint states so only the injector publishes faulty data.
+        if sub is not None:
+            ros_node.destroy_subscription(sub)
+            sub = None
 
         pub_state = False
-        rospy.logwarn('launching fault injector node')
+        ros_logwarn('Launching fault injector node')
 
-        fault_thread = threading.Thread(target=lambda: self.run_command(['rosrun', 'joint_state_publisher', 'fault_injector']))
+        fault_thread = threading.Thread(
+            target=lambda: self.run_command(ros2_run_cmd('gui', 'fault_injector')),
+            daemon=True,
+        )
         fault_thread.start()
         # data = my_message()
         # joint_index_msg = Int32()
@@ -812,11 +864,14 @@ class Gui(QMainWindow):
         # fault_duration_msg = fault_duration
         # start_time_msg = start_time
 
-        # rate = rospy.Rate(2)
-        # while not rospy.is_shutdown():
-        while pub_index.get_num_connections() == 0 or pub_amplitude.get_num_connections == 0 or pub_duration.get_num_connections == 0 or pub_time.get_num_connections == 0 :
-            rospy.loginfo("Waiting for subscribers...")
-            rospy.sleep(0.01)
+        while (
+            pub_index.get_subscription_count() == 0
+            or pub_amplitude.get_subscription_count() == 0
+            or pub_duration.get_subscription_count() == 0
+            or pub_time.get_subscription_count() == 0
+        ):
+            ros_loginfo("Waiting for fault_injector subscriptions...")
+            ros_sleep(0.01)
         for i in range(20):
             print(fault_duration.data)
             # pub2.publish(data)  # Publish to ROS topics
@@ -824,8 +879,8 @@ class Gui(QMainWindow):
             pub_amplitude.publish(fault_amplitude)  # Publish to ROS topics
             pub_duration.publish(fault_duration)  # Publish to ROS topics
             pub_time.publish(start_time)  # Publish to ROS topics
-            rospy.sleep(0.1)
-        rospy.logwarn('Fault inserted successfully')
+            ros_sleep(0.1)
+        ros_logwarn('Fault inserted successfully')
         return pub_state
 
     def remove_fault():
@@ -835,8 +890,8 @@ class Gui(QMainWindow):
 
 # ROS-related code for publisher and subscriber
 def joint_callback(jointstate: JointState):
-    
-    pub.publish(jointstate)
+    if pub_state and pub is not None:
+        pub.publish(jointstate)
 
     # if pub_state:
         # pub.publish(jointstate)
@@ -849,33 +904,47 @@ def joint_callback(jointstate: JointState):
 
 
 def ros_spin():
-    rospy.spin()
+    if ros_node is not None:
+        rclpy.spin(ros_node)
 
 
-if __name__ == "__main__":
+def main(args=None):
+    global ros_node, pub, pub_state, pub_index, pub_duration, pub_amplitude, pub_time, sub
 
+    if not rclpy.ok():
+        rclpy.init(args=args)
 
-    rospy.init_node("Run")
+    ros_node = Node("run")
 
     # Publisher for /faulty_joint_states
-    pub = rospy.Publisher('/faulty_joint_states', JointState, queue_size=100)
+    pub = ros_node.create_publisher(JointState, '/faulty_joint_states', 100)
     pub_state = True
-    # pub2 = rospy.Publisher('fault_data', my_message, queue_size=100)
-    pub_index = rospy.Publisher('fault_index', Int32, queue_size=50)
-    pub_duration = rospy.Publisher('fault_duration', Float32, queue_size=50)
-    pub_amplitude = rospy.Publisher('fault_amplitude', Float32, queue_size=50)
-    pub_time = rospy.Publisher('fault_time', Float32, queue_size=50)
+    pub_index = ros_node.create_publisher(Int32, 'fault_index', 50)
+    pub_duration = ros_node.create_publisher(Float32, 'fault_duration', 50)
+    pub_amplitude = ros_node.create_publisher(Float32, 'fault_amplitude', 50)
+    pub_time = ros_node.create_publisher(Float32, 'fault_time', 50)
 
     # Subscriber for /joint_states
-    sub = rospy.Subscriber('/joint_states', JointState, callback=joint_callback)
+    sub = ros_node.create_subscription(JointState, '/joint_states', joint_callback, 50)
 
-    # Start ROS spin in a separate thread
-    ros_thread = threading.Thread(target=ros_spin)
+    # Start ROS spin in a separate thread so Qt can keep the main thread.
+    ros_thread = threading.Thread(target=ros_spin, daemon=True)
     ros_thread.start()
 
-    # GUI-related code
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon('/home/apurv/Downloads/icon.png'))
     win = Gui()
     win.show()
-    sys.exit(app.exec_())
+    exit_code = app.exec_()
+
+    if ros_node is not None:
+        ros_node.destroy_node()
+        ros_node = None
+    if rclpy.ok():
+        rclpy.shutdown()
+
+    return exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 import subprocess
-import signal
-import sys
 import time
-import rospy
-from gazebo_msgs.srv import GetModelState
+import rclpy
+from rclpy.node import Node
+
+node = None
+
+
+def ros2_run_cmd(package, executable, *args):
+    return ["ros2", "run", package, executable, *args]
+
+
+def ros2_launch_cmd(package, launch_file, *args):
+    launch_name = f"{launch_file}.py" if launch_file.endswith(".launch") else launch_file
+    return ["ros2", "launch", package, launch_name, *args]
 
 
 def run_node(pkg, node_type, args=None, timeout=10):
-    command = ['rosrun', pkg, node_type]
-    if args:
-        command.extend(args)
+    command = ros2_run_cmd(pkg, node_type, *(args or []))
 
     while True:
         print(f"Starting node: {node_type} from package: {pkg}")
@@ -42,56 +49,33 @@ def run_node(pkg, node_type, args=None, timeout=10):
 
 
 def check_model_exists(model_name, timeout=2):
-
-    rospy.logwarn('checking model')
-    """
-    Check if the specified model exists in the Gazebo simulation.
-    
-    Args:
-        model_name (str): The name of the model to check.
-        timeout (int): The time (in seconds) to wait before timing out.
-
-    Returns:
-        bool: True if the model exists, False otherwise.
-    """
-    start_time = time.time()
-    
-    while time.time() - start_time < timeout:
-        try:
-            rospy.wait_for_service('/gazebo/get_model_state', timeout=1)
-            get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
-            response = get_model_state(model_name, "")
-            if response.success:
-                rospy.loginfo(f"Model '{model_name}' exists.")
-                return True  # Model exists
-        except rospy.ROSException:
-            # The service may not be available yet; continue checking
-            pass
-        
-        rospy.loginfo(f"Waiting for model '{model_name}' to spawn...")
-        time.sleep(1)  # Wait before checking again
-
-    rospy.logerr(f"Model '{model_name}' did not spawn within {timeout} seconds.")
-    return False  # Model does not exist within timeout
+    # Gazebo ROS2 service APIs vary between simulator versions; run the randomizer directly.
+    node.get_logger().info(f"Skipping model existence check for '{model_name}' in ROS2 mode")
+    return True
 
 def randomize_model(model_name, randomize_script):
-    rospy.logwarn('will checking model start')
+    node.get_logger().warning('Checking model before randomization')
 
     """Randomize the specified model using the given script."""
     if check_model_exists(model_name):
         run_node('panda_gazebo', randomize_script)
     else:
-        rospy.logerr(f"Restarting {randomize_script} due to missing model '{model_name}'.")
+        node.get_logger().error(f"Restarting {randomize_script} due to missing model '{model_name}'.")
         run_node('panda_gazebo', 'modify_geometry.py')  # Restart geometry modification as a fallback
 
 
-if __name__ == "__main__":
-    rospy.init_node('generator_mode')  # Initialize the ROS node
+def main(args=None):
+    global node
+
+    if not rclpy.ok():
+        rclpy.init(args=args)
+
+    node = Node('generator_mode_welding')
 
     # Launch the work scene
-    subprocess.Popen(['roslaunch', 'panda_gazebo', 'start_workscene.launch', 'gazebo_gui:=false'])    
-    # rospy.logwarn('will checking model start')
+    subprocess.Popen(ros2_launch_cmd('panda_gazebo', 'start_workscene_welding.launch', 'gazebo_gui:=false'))
     time.sleep(1)
+
     # Modify the geometry
     run_node('panda_gazebo', 'modify_geometry.py')
     time.sleep(1)
@@ -101,7 +85,7 @@ if __name__ == "__main__":
     time.sleep(1)
 
     # Randomize the hole position
-    randomize_model('workpiece', 'randomize_hole_position.py')
+    randomize_model('welding_line', 'randomize_welding_line.py')
     time.sleep(1)
 
     # Randomize the hand position
@@ -109,10 +93,29 @@ if __name__ == "__main__":
     time.sleep(1)
 
     # Put the robot in the world
-    subprocess.Popen(['roslaunch', 'panda_gazebo', 'put_robot_in_world.launch','gazebo_gui:=false', 'rviz:=false', 'load_gripper:=false', 'gripper:=drill'])
+    subprocess.Popen(
+        ros2_launch_cmd(
+            'panda_gazebo',
+            'put_robot_in_world_welding.launch',
+            'gazebo_gui:=false',
+            'rviz:=false',
+            'load_gripper:=false',
+            'gripper:=welding',
+        )
+    )
     # Run the drilling process
     # run_node('panda_gazebo', 'ee_location_drilling.py')
-    rospy.logwarn('Ready')
-    rospy.logwarn('Ready')
-    rospy.logwarn('Ready')
-    rospy.logwarn('Ready')
+    node.get_logger().warning('Ready')
+    node.get_logger().warning('Ready')
+    node.get_logger().warning('Ready')
+    node.get_logger().warning('Ready')
+
+    if node is not None:
+        node.destroy_node()
+        node = None
+    if rclpy.ok():
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()
