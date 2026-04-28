@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -8,7 +8,7 @@ import argparse
 
 class DistancePlotterNode:
     def __init__(self, joint_state_column):
-        rospy.init_node('distance_plotter_node', anonymous=True)
+        ros.init_node('distance_plotter_node', anonymous=True)
 
         # Specify your CSV file path
         csv_file_path = self.find_newest_csv_file()  # Adjust the path as needed
@@ -87,7 +87,7 @@ class DistancePlotterNode:
         plt.get_current_fig_manager().window.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def on_close(self):
-        rospy.signal_shutdown("Plot window closed")
+        ros.signal_shutdown("Plot window closed")
         plt.close('all')  # Close all matplotlib plots
 
     def find_newest_csv_file(self):
@@ -113,5 +113,5 @@ if __name__ == '__main__':
     try:
         distance_plotter_node = DistancePlotterNode(args.joint_state_column)
 
-    except rospy.ROSInterruptException:
+    except ros.ROSInterruptException:
         pass

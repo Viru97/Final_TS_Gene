@@ -1,30 +1,58 @@
 #!/usr/bin/env python3
-"""Small python ROS node that can be used to set the logging level of a ROS logger."""
+"""Set Gazebo logger level using ROS 2 service client."""
+
 import argparse
 import sys
 
-import rospy
-from roscpp.srv import SetLoggerLevel, SetLoggerLevelRequest
+import rclpy
+from gazebo_msgs.srv import SetLoggerLevel
+from rclpy.node import Node
+
+
+class LoggerLevelClient(Node):
+    def __init__(self):
+        super().__init__("set_logger_level")
+        self.client = self.create_client(SetLoggerLevel, "/gazebo/set_logger_level")
+
+    def set_level(self, logger_name: str, level: str) -> int:
+        if not self.client.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error("Service /gazebo/set_logger_level not available")
+            return 1
+
+        req = SetLoggerLevel.Request()
+        req.logger = logger_name
+        req.level = level
+
+        future = self.client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        result = future.result()
+        if result is None:
+            self.get_logger().error("Service call failed")
+            return 1
+
+        self.get_logger().info(f"Set logger '{logger_name}' level to '{level}'")
+        return 0
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("logger", help="Logger name")
+    parser.add_argument("level", help="Logger level")
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    args = parse_args(argv)
+
+    rclpy.init(args=None)
+    node = LoggerLevelClient()
+    try:
+        return node.set_level(args.logger, args.level)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
 
 if __name__ == "__main__":
-    rospy.init_node("set_logger_level")
-
-    # Get input arguments.
-    parser = argparse.ArgumentParser(description="Set logging level of a ROS logger.")
-    parser.add_argument(
-        "-l", "--level", nargs="?", type=str, default="info", help="logging level"
-    )
-    parser.add_argument(
-        "-n", "--name", nargs="?", type=str, required=True, help="logger name"
-    )
-    args = parser.parse_args(rospy.myargv(argv=sys.argv)[1:])
-
-    # Call '/gazebo/set_logger_level' service
-    try:
-        rospy.wait_for_service("/gazebo/set_logger_level", timeout=10)
-        set_logger_level_srv = rospy.ServiceProxy(
-            "/gazebo/set_logger_level", SetLoggerLevel
-        )
-        set_logger_level_srv(SetLoggerLevelRequest(logger=args.name, level=args.level))
-    except rospy.ServiceException as e:
-        print("Service call '/gazebo/set_logger_level' failed: %s" % e)
+    raise SystemExit(main())

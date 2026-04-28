@@ -2,7 +2,7 @@
 
 import numpy as np
 import time
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from random import uniform
 from gazebo_msgs.srv import SetModelState, DeleteModel, SpawnModel
 from gazebo_msgs.msg import ModelState
@@ -25,7 +25,7 @@ def randomize_welding_line():
     workpiece_pose = get_model_pose("workpiece")
     workpiece_dimensions = get_model_dimensions("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/workpiece/model.sdf")
     workpiece_length, workpiece_width, workpiece_height = workpiece_dimensions
-    rospy.loginfo(f"workpiece_diamension: {workpiece_length},{workpiece_width}")
+    ros.loginfo(f"workpiece_diamension: {workpiece_length},{workpiece_width}")
     time.sleep(.25)  # Add a delay
 
     # Choose whether welding line should be vertical or horizontal
@@ -42,10 +42,10 @@ def randomize_welding_line():
         welding_line_z = uniform(0.00551, 0.00552)
     local_welding_line_cordinates = (welding_line_x,welding_line_y,welding_line_z)
     world_cordinates_weldingline =transform_from_local_to_world(local_welding_line_cordinates, workpiece_pose)
-    rospy.loginfo(f"welding_line_position(center) in world_coordinates: {world_cordinates_weldingline}")
+    ros.loginfo(f"welding_line_position(center) in world_coordinates: {world_cordinates_weldingline}")
     
-    rospy.wait_for_service('/gazebo/set_model_state')
-    set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+    ros.wait_for_service('/gazebo/set_model_state')
+    set_state = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
     # # SET Welding line POSITION # # #
     
     welding_line_model_state.model_name = welding_line_model_name
@@ -65,10 +65,10 @@ def randomize_welding_line():
     try:
         set_state(welding_line_model_state)
         time.sleep(1)  # Add a delay
-        rospy.loginfo("Welding line position randomized.")
-    except rospy.ServiceException as e:
-        rospy.logerr("Failed to call Gazebo service: %s", str(e))
+        ros.loginfo("Welding line position randomized.")
+    except ros.ServiceException as e:
+        ros.logerr("Failed to call Gazebo service: %s", str(e))
 
 if __name__ == '__main__':
-    rospy.init_node('randomize_welding_line')
+    ros.init_node('randomize_welding_line')
     randomize_welding_line()

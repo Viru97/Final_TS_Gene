@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from gazebo_msgs.srv import GetModelState, SpawnModel, DeleteModel
 from gazebo_msgs.msg import ModelState
 from geometry_msgs.msg import Pose
@@ -12,22 +12,22 @@ def read_original_sdf(model_path):
         return model_file.read()
 
 def spawn_model(model_name, model_xml,Pose,reference_frame="world"):
-    rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    spawn_model_proxy = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+    ros.wait_for_service('/gazebo/spawn_sdf_model')
+    spawn_model_proxy = ros.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
     try:
         spawn_model_proxy(model_name, model_xml, "", Pose, reference_frame)
-        rospy.loginfo(f"Model '{model_name}' spawned successfully.")
-    except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to spawn model '{model_name}': {str(e)}")
+        ros.loginfo(f"Model '{model_name}' spawned successfully.")
+    except ros.ServiceException as e:
+        ros.logerr(f"Failed to spawn model '{model_name}': {str(e)}")
 
 def delete_model(model_name):
-    rospy.wait_for_service('/gazebo/delete_model')
-    delete_model_proxy = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+    ros.wait_for_service('/gazebo/delete_model')
+    delete_model_proxy = ros.ServiceProxy('/gazebo/delete_model', DeleteModel)
     try:
         delete_model_proxy(model_name)
-        rospy.loginfo(f"Model '{model_name}' deleted successfully.")
-    except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to delete model '{model_name}': {str(e)}")
+        ros.loginfo(f"Model '{model_name}' deleted successfully.")
+    except ros.ServiceException as e:
+        ros.logerr(f"Failed to delete model '{model_name}': {str(e)}")
 
 
 def get_model_dimensions(model_path):
@@ -58,8 +58,8 @@ def set_dimensions_in_sdf(model_path, model_dimension):
 def get_model_pose(model_name):                    #get_model_pose provides x,y,z,roll,pitch,yaw
     _model_state= ModelState()
     _model_state.pose= Pose()
-    rospy.wait_for_service('/gazebo/get_model_state')
-    get_model_state_call = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+    ros.wait_for_service('/gazebo/get_model_state')
+    get_model_state_call = ros.ServiceProxy('/gazebo/get_model_state', GetModelState)
     try:
         _model_state_ = get_model_state_call(model_name, "world")
         _model_state.pose = _model_state_.pose
@@ -77,20 +77,20 @@ def get_model_pose(model_name):                    #get_model_pose provides x,y,
                       pitch,
                       yaw                          )
         return model_pose
-    except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to get model state for '{model_name}': {str(e)}")
+    except ros.ServiceException as e:
+        ros.logerr(f"Failed to get model state for '{model_name}': {str(e)}")
         return None
 
 def get_model_state(model_name):
     model_state= ModelState()
     model_state.pose= Pose()
-    rospy.wait_for_service('/gazebo/get_model_state')
-    get_model_state_call = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+    ros.wait_for_service('/gazebo/get_model_state')
+    get_model_state_call = ros.ServiceProxy('/gazebo/get_model_state', GetModelState)
     try:
         model_state = get_model_state_call(model_name, "world")
         return model_state.pose
-    except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to get model state for '{model_name}': {str(e)}")
+    except ros.ServiceException as e:
+        ros.logerr(f"Failed to get model state for '{model_name}': {str(e)}")
         return None
 
 def write_pose_to_sdf_file(model_path, model_state_pose):
@@ -128,10 +128,10 @@ def write_pose_to_sdf_file(model_path, model_state_pose):
                     modified_sdf_content = file.read()
                 return modified_sdf_content
             else:
-                rospy.logerr("Failed to find <pose> element in the SDF.")
+                ros.logerr("Failed to find <pose> element in the SDF.")
         else:
-            rospy.logerr("Failed to find <inertial> element in the SDF.")
+            ros.logerr("Failed to find <inertial> element in the SDF.")
     else:
-        rospy.logerr("Failed to find <link name='link'> element in the SDF.")
+        ros.logerr("Failed to find <link name='link'> element in the SDF.")
 
 

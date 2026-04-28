@@ -1,21 +1,22 @@
 #!/bin/bash
 
-# Open roscore in a new terminal
-gnome-terminal -t "roscore" -- bash -c "source devel/setup.bash; roscore"
-sleep 2s   
+# Ported ROS 2 Pipeline
 
-# Set simulation time parameter in a new terminal
-gnome-terminal -t "rosparam" -- bash -c "source devel/setup.bash; rosparam set /use_sim_time true"
-sleep 1s
+# Set simulation time (using a hypothetical node name as an example, 
+# in ROS 2 parameters are node-specific)
+# ros2 param set /some_node use_sim_time true
 
-# Run the GUI node in a new terminal
-gnome-terminal -t "gui" -- bash -c "source devel/setup.bash; rosrun gui gui_backup.py"
+# Run the GUI node
+# Assuming the 'gui' package is migrated and configured for ament_python
+ros2 run gui gui_backup.py &
 
-# Start a loop to allow user to keep the script open
+echo "ROS 2 processes started."
+
 while true; do
     read -p "Quit? (y/n): " choice
     if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
-        gnome-terminal -t "end_everything" -- bash -c "ps aux | grep ros | awk '{print \$2}' | xargs kill -9; ps aux | grep rviz | awk '{print \$2}' | xargs kill -9; exec bash"
+        pkill -f ros2
+        pkill -f rviz2
         break
     else
         echo "Processes will continue running."

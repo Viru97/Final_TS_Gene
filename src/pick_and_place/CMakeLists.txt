@@ -1,54 +1,57 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(pick_and_place)
 
-find_package(catkin REQUIRED
-  COMPONENTS
-
-    interactive_markers
-    moveit_core
-    moveit_ros_planning
-    moveit_ros_planning_interface
-    moveit_ros_perception
-    rviz_visual_tools
-    moveit_visual_tools
-    pluginlib
-    geometric_shapes
-    pcl_ros
-    pcl_conversions
-    rosbag
-    tf2_ros
-    tf2_eigen
-    tf2_geometry_msgs
-    actionlib_msgs
-    control_msgs
-)
-
-generate_messages(
-  DEPENDENCIES actionlib_msgs std_msgs trajectory_msgs control_msgs  # Or other packages containing msgs
-)
-
-catkin_package(
-  LIBRARIES
-  INCLUDE_DIRS
-  CATKIN_DEPENDS
-    moveit_core
-    moveit_visual_tools
-    moveit_ros_planning_interface
-    interactive_markers
-    tf2_geometry_msgs
-    actionlib_msgs
-    control_msgs
-
-)
-
-include_directories(SYSTEM ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIRS})
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
+find_package(moveit_visual_tools REQUIRED)
+find_package(rviz_visual_tools REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(gazebo_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
 
 add_executable(pick_and_place_opencv src/pick_and_place_opencv.cpp)
-target_link_libraries(pick_and_place_opencv ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_include_directories(pick_and_place_opencv PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(pick_and_place_opencv
+  rclcpp
+  moveit_ros_planning_interface
+  moveit_visual_tools
+  rviz_visual_tools
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
+  geometry_msgs
+  std_msgs
+  gazebo_msgs
+  trajectory_msgs
+)
 
 add_executable(pick_and_place_welding src/pick_and_place_welding.cpp)
-target_link_libraries(pick_and_place_welding ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+ament_target_dependencies(pick_and_place_welding
+  rclcpp
+  moveit_ros_planning_interface
+  moveit_visual_tools
+  rviz_visual_tools
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
+  geometry_msgs
+  std_msgs
+  gazebo_msgs
+  trajectory_msgs
+)
 
-#install(TARGETS pick_and_place_opencv DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(TARGETS
+  pick_and_place_opencv
+  pick_and_place_welding
+  DESTINATION lib/${PROJECT_NAME}
+)
 
-#install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+ament_package()

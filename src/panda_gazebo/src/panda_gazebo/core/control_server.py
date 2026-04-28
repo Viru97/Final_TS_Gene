@@ -37,6 +37,7 @@ from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalRespons
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.duration import Duration
 from rclpy.node import Node
+from franka_msgs.action import GripperCommand
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 
@@ -53,6 +54,7 @@ from panda_gazebo.common.helpers import (
     panda_action_msg_2_control_msgs_action_msg,
     ros_exit_gracefully,
     translate_actionclient_result_error_code,
+    wait_for_message,
 )
 from panda_gazebo.exceptions import InputMessageInvalidError
 from panda_gazebo.action import FollowJointTrajectory
@@ -222,39 +224,39 @@ class PandaControlServer(Node):
         # the `ros_control` package to allow the user to wait for control commands
         # and specify incomplete joint control commands (i.e. joint commands that do
         # not contain all the joints).
-        rospy.loginfo("Creating '%s' services." % rospy.get_name())
-        rospy.logdebug(
-            "Creating '%s/get_controlled_joints' service." % rospy.get_name()
+        self._logger.info("Creating '%s' services." % self.get_name())
+        self._logger.debug(
+            "Creating '%s/get_controlled_joints' service." % self.get_name()
         )
-        self._get_controlled_joints_srv = rospy.Service(
-            "%s/get_controlled_joints" % rospy.get_name().split("/")[-1],
+        self._get_controlled_joints_srv = self.create_service(
+            "%s/get_controlled_joints" % self.get_name().split("/")[-1],
             GetControlledJoints,
             self._get_controlled_joints_cb,
         )
         if load_set_joint_commands_service:
-            rospy.logdebug(
-                "Creating '%s/set_joint_commands' service." % rospy.get_name()
+            self._logger.debug(
+                "Creating '%s/set_joint_commands' service." % self.get_name()
             )
-            self._set_joint_commands_srv = rospy.Service(
-                "%s/set_joint_commands" % rospy.get_name().split("/")[-1],
+            self._set_joint_commands_srv = self.create_service(
+                "%s/set_joint_commands" % self.get_name().split("/")[-1],
                 SetJointCommands,
                 self._set_joint_commands_cb,
             )
         if load_extra_services:
-            rospy.logdebug(
+            self._logger.debug(
                 "Creating '%s/panda_arm/set_joint_positions' service."
-                % rospy.get_name()
+                % self.get_name()
             )
-            self._set_arm_joint_positions_srv = rospy.Service(
-                "%s/panda_arm/set_joint_positions" % rospy.get_name().split("/")[-1],
+            self._set_arm_joint_positions_srv = self.create_service(
+                "%s/panda_arm/set_joint_positions" % self.get_name().split("/")[-1],
                 SetJointPositions,
                 self._arm_set_joint_positions_cb,
             )
-            rospy.logdebug(
-                "Creating '%s/panda_arm/set_joint_efforts' service." % rospy.get_name()
+            self._logger.debug(
+                "Creating '%s/panda_arm/set_joint_efforts' service." % self.get_name()
             )
-            self._set_arm_joint_efforts_srv = rospy.Service(
-                "%s/panda_arm/set_joint_efforts" % rospy.get_name().split("/")[-1],
+            self._set_arm_joint_efforts_srv = self.create_service(
+                "%s/panda_arm/set_joint_efforts" % self.get_name().split("/")[-1],
                 SetJointEfforts,
                 self._arm_set_joint_efforts_cb,
             )
@@ -264,15 +266,15 @@ class PandaControlServer(Node):
         # automatically sets the speed, epsilon and force. It also clips gripper width
         # that are not possible.
         if self._load_gripper:
-            rospy.logdebug(
-                "Creating '%s/panda_hand/set_gripper_width' service." % rospy.get_name()
+            self._logger.debug(
+                "Creating '%s/panda_hand/set_gripper_width' service." % self.get_name()
             )
-            self._set_gripper_width_srv = rospy.Service(
-                "%s/panda_hand/set_gripper_width" % rospy.get_name().split("/")[-1],
+            self._set_gripper_width_srv = self.create_service(
+                "%s/panda_hand/set_gripper_width" % self.get_name().split("/")[-1],
                 SetGripperWidth,
                 self._set_gripper_width_cb,
             )
-            rospy.loginfo("'%s' services created successfully." % rospy.get_name())
+            self._logger.info("'%s' services created successfully." % self.get_name())
 
         ########################################
         # Create panda_control publishers and ##
@@ -281,35 +283,33 @@ class PandaControlServer(Node):
         ########################################
         if load_set_joint_commands_service:
             # Create arm joint position controller publisher.
-            self._arm_joint_position_pub = rospy.Publisher(
+            self._arm_joint_position_pub = self.create_publisher(
                 "%s/command" % (ARM_POSITION_CONTROLLER),
                 Float64MultiArray,
                 queue_size=10,
             )
 
             # Create arm joint effort publisher.
-            self._arm_joint_effort_pub = rospy.Publisher(
+            self._arm_joint_effort_pub = self.create_publisher(
                 "%s/command" % (ARM_EFFORT_CONTROLLER), Float64MultiArray, queue_size=10
             )
 
         # Connect to controller_manager services.
         try:
-            rospy.logdebug(
+            self._logger.debug(
                 "Connecting to 'controller_manager/list_controllers' service."
             )
-            rospy.wait_for_service(
-                "controller_manager/list_controllers",
-                timeout=rospy.Duration.from_sec(CONNECTION_TIMEOUT),
+            self._list_controllers_client = self.create_client(
+                ListControllers, "controller_manager/list_controllers"
             )
-            self._list_controllers_client = rospy.ServiceProxy(
-                "controller_manager/list_controllers", ListControllers
-            )
-            rospy.logdebug(
+            if not self._list_controllers_client.wait_for_service(timeout_sec=CONNECTION_TIMEOUT):
+                raise RuntimeError("controller_manager/list_controllers unavailable")
+            self._logger.debug(
                 "Connected to 'controller_manager/list_controllers' service!"
             )
-        except (rospy.ServiceException, ROSException, ROSInterruptException):
+        except Exception:
             err_msg = (
-                f"Shutting down '{rospy.get_name()}' because no connection could be "
+                f"Shutting down '{self.get_name()}' because no connection could be "
                 "established with the 'controller_manager/list_controllers' service."
             )
             ros_exit_gracefully(shutdown_message=err_msg, exit_code=1)
@@ -317,22 +317,21 @@ class PandaControlServer(Node):
         # Connect to the gripper command action server.
         if self._load_gripper:
             franka_gripper_command_topic = "franka_gripper/gripper_action"
-            rospy.logdebug(
+            self._logger.debug(
                 "Connecting to '%s' action service." % franka_gripper_command_topic
             )
-            if action_server_exists(franka_gripper_command_topic):
+            if action_server_exists(self, franka_gripper_command_topic):
                 # Connect to robot control action server.
-                self._gripper_command_client = SimpleActionClient(
-                    franka_gripper_command_topic,
-                    GripperCommandAction,
+                self._gripper_command_client = ActionClient(
+                    self, GripperCommand, franka_gripper_command_topic
                 )
 
-                # Waits until the action server has started up.
+                # Wait until the action server has started up.
                 retval = self._gripper_command_client.wait_for_server(
-                    timeout=rospy.Duration.from_sec(CONNECTION_TIMEOUT)
+                    timeout_sec=CONNECTION_TIMEOUT
                 )
                 if not retval:
-                    rospy.logwarn(
+                    self._logger.warn(
                         "No connection could be established with the "
                         f"'{franka_gripper_command_topic}' service. The Panda Robot "
                         "environment therefore can not use this action service to "
@@ -341,7 +340,7 @@ class PandaControlServer(Node):
                 else:
                     self._gripper_command_client_connected = True
             else:
-                rospy.logwarn(
+                self._logger.warn(
                     "No connection could be established with the "
                     f"'{franka_gripper_command_topic}' service. The Panda Robot "
                     "environment therefore can not use this action service to control "
@@ -354,19 +353,19 @@ class PandaControlServer(Node):
 
         # Retrieve current robot joint state and effort information.
         self.joint_states = None
-        while self.joint_states is None and not rospy.is_shutdown():
+        while self.joint_states is None and not (not rclpy.ok()):
             try:
-                self.joint_states = rospy.wait_for_message(
-                    "joint_states", JointState, timeout=1.0
+                self.joint_states = wait_for_message(
+                    self, "joint_states", JointState, timeout_sec=1.0
                 )
-            except ROSException:
-                rospy.logwarn(
+            except TimeoutError:
+                self._logger.warn(
                     "Current joint_states not ready yet, retrying for getting "
                     "'joint_states'"
                 )
 
         # Create joint_state subscriber.
-        self._joint_states_sub = rospy.Subscriber(
+        self._joint_states_sub = self.create_subscription(
             "joint_states", JointState, self._joint_states_cb, queue_size=1
         )
 
@@ -382,59 +381,9 @@ class PandaControlServer(Node):
         #   - The ability to automatic generate a time axes when the create_time_axis
         #     field is set to True.
         if load_arm_follow_joint_trajectory_action:
-            # Connect to the 'panda_arm_trajectory_controller/follow_joint_trajectory'
-            # action server.
-            rospy.logdebug(
-                "Connecting to '{}' action service.".format(
-                    "panda_arm_trajectory_controller/follow_joint_trajectory"
-                )
+            self._logger.warn(
+                "Legacy follow_joint_trajectory wrapper action server is disabled in ROS2 port (pending native rclpy ActionServer implementation)."
             )
-            if action_server_exists(
-                "panda_arm_trajectory_controller/follow_joint_trajectory"
-            ):
-                # Connect to robot control action server.
-                self._arm_joint_traj_client = SimpleActionClient(
-                    "panda_arm_trajectory_controller/follow_joint_trajectory",
-                    control_msgs.FollowJointTrajectoryAction,
-                )
-
-                # Waits until the action server has started up.
-                retval = self._arm_joint_traj_client.wait_for_server(
-                    timeout=rospy.Duration(secs=5)
-                )
-                if not retval:
-                    rospy.logwarn(
-                        "No connection could be established with the "
-                        "'panda_arm_trajectory_controller/follow_joint_trajectory' "
-                        "service. The Panda Robot Environment therefore can not use "
-                        "this action service to control the Panda Robot."
-                    )
-                else:
-                    self._arm_joint_traj_client_connected = True
-            else:
-                rospy.logwarn(
-                    "No connection could be established with the "
-                    "'panda_arm_trajectory_controller/follow_joint_trajectory' "
-                    "service. The Panda Robot Environment therefore can not use this "
-                    "action service to control the Panda Robot."
-                )
-
-            # Setup a new Panda arm joint trajectory action server.
-            rospy.logdebug(
-                "Creating '%s/panda_arm/follow_joint_trajectory' service."
-                % rospy.get_name()
-            )
-            self._arm_joint_traj_as = SimpleActionServer(
-                "%s/panda_arm/follow_joint_trajectory"
-                % rospy.get_name().split("/")[-1],
-                FollowJointTrajectoryAction,
-                execute_cb=self._arm_joint_traj_execute_cb,
-                auto_start=False,
-            )
-            self._arm_joint_traj_as.register_preempt_callback(
-                self._arm_joint_traj_preempt_cb
-            )
-            self._arm_joint_traj_as.start()
 
     ################################################
     # Panda control member functions ###############
@@ -479,7 +428,7 @@ class PandaControlServer(Node):
                 if control_type == "position"
                 else ARM_EFFORT_CONTROLLER
             )
-            rospy.logwarn(
+            self._logger.warn(
                 f"Not waiting for control to be completed as no joints appear to be "
                 f"controlled when using '{control_type}' control. Please make sure the "
                 f"'{controller}' controller that is needed for '{control_type}' "
@@ -489,8 +438,8 @@ class PandaControlServer(Node):
 
         # Wait till robot positions/efforts reach the setpoint or the velocities are
         # not changing anymore.
-        timeout_time = rospy.get_rostime() + rospy.Duration.from_sec(timeout)
-        while not rospy.is_shutdown() and rospy.get_rostime() < timeout_time:
+        timeout_time = self.get_clock().now() + Duration(seconds=timeout)
+        while rclpy.ok() and self.get_clock().now() < timeout_time:
             joint_states = np.array(
                 list(
                     compress(
@@ -616,7 +565,7 @@ class PandaControlServer(Node):
 
         # Validate time axis step size and throw warning if invalid.
         if input_msg.create_time_axis and input_msg.time_axis_step <= 0.0:
-            rospy.logwarn(
+            self._logger.warn(
                 f"A time axis step size of '{input_msg.time_axis_step}' is not "
                 "supported. Please supply a time axis step greater than 0.0 if you "
                 "want to automatically create the trajectory time axis."
@@ -665,7 +614,7 @@ class PandaControlServer(Node):
                     "control group. When this is the case the current joint states "
                     "will be used for the joints without a position command."
                 )
-                rospy.logwarn_once(logwarn_message)
+                self._logwarn_once(logwarn_message)
 
             # Iterates through waypoints to construct new joint trajectory control
             # message.
@@ -677,7 +626,7 @@ class PandaControlServer(Node):
                 if input_msg.create_time_axis:
                     arm_control_msg.trajectory.points[
                         idx
-                    ].time_from_start = rospy.Duration.from_sec(
+                    ].time_from_start = Duration(seconds=
                         (idx + 1) * input_msg.time_axis_step
                     )
 
@@ -775,7 +724,7 @@ class PandaControlServer(Node):
             if input_msg.create_time_axis:
                 arm_control_msg.trajectory.points[
                     idx
-                ].time_from_start = rospy.Duration.from_sec(
+                ].time_from_start = Duration(seconds=
                     (idx + 1) * input_msg.time_axis_step
                 )
 
@@ -880,7 +829,7 @@ class PandaControlServer(Node):
                             f"{controlled_joints[: len(control_input)]} will be "
                             "controlled."
                         )
-                        rospy.logwarn(logwarn_message)
+                        self._logger.warn(logwarn_message)
 
                         # Add control commands to arm command dict.
                         for k, v in zip(list(arm_commands_dict.keys()), control_input):
@@ -976,7 +925,7 @@ class PandaControlServer(Node):
         if len(joint_commands_req.joint_names) != len(
             joint_commands_req.joint_commands
         ):
-            rospy.logwarn_once(
+            self._logwarn_once(
                 "The length of the joints command 'joint_names' array is "
                 f"{len(joint_commands_req.joint_names)} while the length of the "
                 f"'joint_commands' array is {len(joint_commands_req.joint_commands)}. "
@@ -995,7 +944,7 @@ class PandaControlServer(Node):
                 if len(invalid_joints) == 1
                 else "they are not valid"
             )
-            rospy.logwarn_once(
+            self._logwarn_once(
                 f"{joint_word} {invalid_joints} will be ignored since {validity_word} "
                 f"panda control joint. Valid control joints are {valid_joints}."
             )
@@ -1222,7 +1171,7 @@ class PandaControlServer(Node):
         resp = SetJointCommandsResponse()
         control_type = set_joint_commands_req.control_type.lower()
         if control_type not in ["position", "effort"]:
-            rospy.logwarn(
+            self._logger.warn(
                 "Please specify a valid control type. Valid values are 'position' & "
                 "'effort'."
             )
@@ -1250,11 +1199,11 @@ class PandaControlServer(Node):
             if self._load_gripper:
                 gripper_resp = self._set_gripper_width_cb(gripper_command_msg)
             else:
-                rospy.logwarn_once(
-                    f"Gripper command could not be set since the '{rospy.get_name()}' "
+                self._logwarn_once(
+                    f"Gripper command could not be set since the '{self.get_name()}' "
                     "gripper services were not loaded. Please set the 'load_gripper` "
                     "argument to `True` if you want to control the gripper through the "
-                    f"'{rospy.get_name()}'."
+                    f"'{self.get_name()}'."
                 )
 
         # Check if everything went OK and return response.
@@ -1297,9 +1246,9 @@ class PandaControlServer(Node):
         duplicate_list = get_duplicate_list(set_joint_positions_req.joint_names)
         if duplicate_list:
             joint_word = "joints" if len(duplicate_list) > 1 else "joint"
-            rospy.logwarn(
+            self._logger.warn(
                 f"Multiple entries were found for {joint_word} '{duplicate_list}' in "
-                f"the '{rospy.get_name()}/panda_arm/set_joint_positions' message. "
+                f"the '{self.get_name()}/panda_arm/set_joint_positions' message. "
                 "Consequently, only the first occurrence was used in setting the joint "
                 "positions."
             )
@@ -1325,7 +1274,7 @@ class PandaControlServer(Node):
             controller_word = (
                 "controller is" if len(missing_controllers) == 1 else "controllers are"
             )
-            rospy.logwarn(
+            self._logger.warn(
                 f"Panda arm joint position command could not be sent as the "
                 f"{missing_controllers} {controller_word} not loaded. Please make "
                 "sure you load the controller parameters onto the ROS parameter server."
@@ -1355,7 +1304,7 @@ class PandaControlServer(Node):
                     if len(required_stopped_controllers) == 1
                     else "controllers are"
                 )
-                rospy.logwarn(
+                self._logger.warn(
                     f"Panda arm joint positions command sent but probably not executed "
                     f"as the {required_stopped_controllers} {controller_word} not "
                     "running."
@@ -1372,11 +1321,11 @@ class PandaControlServer(Node):
                 "Panda arm joint positions not set as "
                 f"{lower_first_char(e.log_message)}"
             )
-            rospy.logwarn(logwarn_msg)
+            self._logger.warn(logwarn_msg)
             resp.success = False
             resp.message = e.args[0]
             return resp
-        rospy.logdebug("Publishing Panda arm joint positions control message.")
+        self._logger.debug("Publishing Panda arm joint positions control message.")
         self._arm_joint_position_pub.publish(control_pub_msgs)
 
         # Wait till control is finished or timeout has been reached.
@@ -1403,9 +1352,9 @@ class PandaControlServer(Node):
         duplicate_list = get_duplicate_list(set_joint_efforts_req.joint_names)
         if duplicate_list:
             joint_word = "joints" if len(duplicate_list) > 1 else "joint"
-            rospy.logwarn(
+            self._logger.warn(
                 f"Multiple entries were found for {joint_word} '{duplicate_list}' in "
-                f"the '{rospy.get_name()}/panda_arm/set_joint_efforts' message. "
+                f"the '{self.get_name()}/panda_arm/set_joint_efforts' message. "
                 "Consequently, only the first occurrence was used in setting the joint "
                 "efforts."
             )
@@ -1430,7 +1379,7 @@ class PandaControlServer(Node):
             controller_word = (
                 "controller is" if len(missing_controllers) == 1 else "controllers are"
             )
-            rospy.logwarn(
+            self._logger.warn(
                 "Panda arm joint effort command could not be send as the "
                 f"{missing_controllers} {controller_word} not loaded. Please make "
                 "sure you load the controller parameters onto the ROS parameter server."
@@ -1460,7 +1409,7 @@ class PandaControlServer(Node):
                     if len(required_stopped_controllers) == 1
                     else "controllers are"
                 )
-                rospy.logwarn(
+                self._logger.warn(
                     f"Panda arm joint efforts command sent but probably not executed "
                     f"as the {required_stopped_controllers} {controller_word} not "
                     "running."
@@ -1476,11 +1425,11 @@ class PandaControlServer(Node):
             logwarn_msg = (
                 f"Panda arm joint efforts not set as {lower_first_char(e.log_message)}"
             )
-            rospy.logwarn(logwarn_msg)
+            self._logger.warn(logwarn_msg)
             resp.success = False
             resp.message = e.args[0]
             return resp
-        rospy.logdebug("Publishing Panda arm joint efforts control message.")
+        self._logger.debug("Publishing Panda arm joint efforts control message.")
         self._arm_joint_effort_pub.publish(control_pub_msgs)
 
         # Wait till control is finished or timeout has been reached.
@@ -1518,14 +1467,14 @@ class PandaControlServer(Node):
         set_gripper_width_req.width /= 2
         gripper_width = np.clip(set_gripper_width_req.width, 0, 0.08)
         if gripper_width != set_gripper_width_req.width:
-            rospy.logwarn(
+            self._logger.warn(
                 "Gripper width was clipped as it was not within bounds [0, 0.08]."
             )
 
         # Create gripper command action message.
         # NOTE: The max_effort has to be 0 for the gripper to be able to move (see #33).
-        req = GripperCommandGoal()
-        req.command.position = gripper_width
+        req = GripperCommand.Goal()
+        req.command.position = float(gripper_width)
         req.command.max_effort = (
             set_gripper_width_req.max_effort
             if set_gripper_width_req.max_effort != 0.0
@@ -1536,17 +1485,20 @@ class PandaControlServer(Node):
 
         # Invoke 'franka_gripper' action service
         if self._gripper_command_client_connected:
-            self._gripper_command_client.send_goal(req)
-
-            # Wait for result.
-            if set_gripper_width_req.wait:
-                resp.success = self._gripper_command_client.wait_for_result(
-                    timeout=set_gripper_width_req.timeout
-                )
+            goal_future = self._gripper_command_client.send_goal_async(req)
+            rclpy.spin_until_future_complete(self, goal_future)
+            goal_handle = goal_future.result()
+            if goal_handle is None or not goal_handle.accepted:
+                resp.success = False
+            elif set_gripper_width_req.wait:
+                result_future = goal_handle.get_result_async()
+                timeout = float(set_gripper_width_req.timeout) if set_gripper_width_req.timeout > 0.0 else None
+                rclpy.spin_until_future_complete(self, result_future, timeout_sec=timeout)
+                resp.success = result_future.done()
             else:
                 resp.success = True
         else:
-            rospy.logwarn(
+            self._logger.warn(
                 "Cloud not connect to franka_gripper/{} service.".format(
                     "grasp" if set_gripper_width_req.grasping else "move"
                 )
@@ -1609,9 +1561,9 @@ class PandaControlServer(Node):
         duplicate_list = get_duplicate_list(goal.trajectory.joint_names)
         if duplicate_list:
             joint_word = "joints" if len(duplicate_list) > 1 else "joint"
-            rospy.logwarn(
+            self._logger.warn(
                 f"Multiple entries were found for {joint_word} '{duplicate_list}' "
-                f"in the '{rospy.get_name()}/panda_arm/follow_joint_trajectory' "
+                f"in the '{self.get_name()}/panda_arm/follow_joint_trajectory' "
                 "message. Consequently, only the first occurrence was used in "
                 "setting the joint trajectory."
             )
@@ -1623,11 +1575,11 @@ class PandaControlServer(Node):
             goal_msg = self._create_arm_traj_action_server_msg(goal)
         except InputMessageInvalidError as e:
             self._arm_joint_traj_as.set_aborted(
-                FollowJointTrajectoryResult(
+                FollowJointTrajectory.Result(
                     error_code=e.details["error_code"], error_string=e.log_message
                 )
             )
-            rospy.logwarn_once(
+            self._logwarn_once(
                 "Joint trajectory control command failed because "
                 f"{e.args[0].lower()}"
             )
@@ -1642,7 +1594,7 @@ class PandaControlServer(Node):
         # Handle timeout.
         if not done:
             self._arm_joint_traj_as.set_aborted(
-                FollowJointTrajectoryResult(
+                FollowJointTrajectory.Result(
                     error_code=-6,
                     error_string="Goal was not executed within the given timeout.",
                 )

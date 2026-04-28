@@ -31,13 +31,14 @@ import re
 import sys
 
 import moveit_commander
+import rclpy
+from rclpy.node import Node
 import numpy as np
-import rospy
-from dynamic_reconfigure.server import Server
+from panda_gazebo.common import rospy_shim as ros
 from geometry_msgs.msg import Pose, PoseStamped
 from moveit_commander.exception import MoveItCommanderException
 from moveit_msgs.msg import DisplayTrajectory
-from rospy.exceptions import ROSException
+from panda_gazebo.common.rospy_shim import ROSException
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
 
@@ -88,7 +89,7 @@ from panda_gazebo.srv import (
 MAX_RANDOM_SAMPLES = 5
 
 
-class PandaMoveItPlannerServerWelding(object):
+class PandaMoveItPlannerServerWelding(Node):
     """Used to control or request information from the Panda Robot. This is done using
     the MoveIt :mod:`moveit_commander` module.
 
@@ -134,10 +135,12 @@ class PandaMoveItPlannerServerWelding(object):
                 are not used by the
                 :ros-gazebo-gym:`ros_gazebo_gym <>` package. Defaults to ``False``.
         """
+        super().__init__("panda_moveit_planner_server")
+        ros.set_node(self)
         self._load_gripper = load_gripper
 
         # Initialise MoveIt/Robot/Scene commanders
-        rospy.logdebug("Initialise MoveIt Robot/Scene commanders.")
+        ros.logdebug("Initialise MoveIt Robot/Scene commanders.")
         try:
             moveit_commander.roscpp_initialize(sys.argv)
             self.robot = moveit_commander.RobotCommander()
@@ -146,18 +149,18 @@ class PandaMoveItPlannerServerWelding(object):
             if "invalid robot mode" in e.args[0]:
                 err_msg = (
                     "Shutting down '%s' because robot_description was not found."
-                    % rospy.get_name()
+                    % ros.get_name()
                 )
             else:
                 err_msg = "Shutting down '%s' because %s" % (
-                    rospy.get_name(),
+                    ros.get_name(),
                     e.args[0],
                 )
             ros_exit_gracefully(shutdown_msg=err_msg, exit_code=1)
 
         # Initialise group commanders.
         try:
-            rospy.logdebug("Initialise MoveIt Panda arm commander.")
+            ros.logdebug("Initialise MoveIt Panda arm commander.")
             self.move_group_arm = moveit_commander.MoveGroupCommander(arm_move_group)
         except Exception as e:
             if len(re.findall("Group '(.*)' was not found", e.args[0])) >= 1:
@@ -165,39 +168,39 @@ class PandaMoveItPlannerServerWelding(object):
                     "Shutting down '%s' because Panda arm move group '%s' was not "
                     "found."
                     % (
-                        rospy.get_name(),
+                        ros.get_name(),
                         arm_move_group,
                     )
                 )
             else:
                 err_msg = "Shutting down '%s' because %s" % (
-                    rospy.get_name(),
+                    ros.get_name(),
                     e.args[0],
                 )
             ros_exit_gracefully(shutdown_msg=err_msg, exit_code=1)
         if self._load_gripper:
             try:
-                rospy.logdebug("Initialise MoveIt Panda hand commander.")
+                ros.logdebug("Initialise MoveIt Panda hand commander.")
                 self.move_group_hand = moveit_commander.MoveGroupCommander(
                     hand_move_group
                 )
             except Exception as e:
                 if len(re.findall("Group '(.*)' was not found", e.args[0])) >= 1:
-                    rospy.logwarn(
+                    ros.logwarn(
                         "Gripper services could not be loaded since the "
                         f"'{hand_move_group}' was not found."
                     )
                     self._load_gripper = False
                 else:
                     err_msg = "Shutting down '%s' because %s" % (
-                        rospy.get_name(),
+                        ros.get_name(),
                         e.args[0],
                     )
                     ros_exit_gracefully(shutdown_msg=err_msg, exit_code=1)
         self.move_group_arm.set_end_effector_link(arm_ee_link)
 
         # Create display trajectory publisher.
-        self._display_trajectory_publisher = rospy.Publisher(
+        self._display_trajectory_publisher = ros.Publisher(
             "move_group/display_planned_path",
             DisplayTrajectory,
             queue_size=10,
@@ -207,129 +210,129 @@ class PandaMoveItPlannerServerWelding(object):
         # NOTE: Used to change the max velocity and acceleration scaling that is used
         # by the MoveIt control server.
         self._get_params()
-        self._dyn_reconfigure_srv = Server(MoveitServerConfig, self._dyn_reconfigure_cb)
+        self._dyn_reconfigure_srv = None  # dynamic_reconfigure is ROS1-only
 
         ########################################
         # Create node services services ########
         ########################################
 
         # Create main PandaMoveItPlannerServer services.
-        rospy.loginfo("Creating '%s' services." % rospy.get_name())
+        ros.loginfo("Creating '%s' services." % ros.get_name())
         if load_set_ee_pose_service:
-            rospy.logdebug(
-                "Creating '%s/panda_arm/set_ee_pose' service." % rospy.get_name()
+            ros.logdebug(
+                "Creating '%s/panda_arm/set_ee_pose' service." % ros.get_name()
             )
-            self._arm_set_ee_pose_srv = rospy.Service(
-                "%s/panda_arm/set_ee_pose" % rospy.get_name().split("/")[-1],
+            self._arm_set_ee_pose_srv = ros.Service(
+                "%s/panda_arm/set_ee_pose" % ros.get_name().split("/")[-1],
                 SetEePose,
                 self._arm_set_ee_pose_callback,
             )
-        rospy.logdebug(
+        ros.logdebug(
             "Creating '%s/panda_arm/get_ee_pose_joint_config' service."
-            % rospy.get_name()
+            % ros.get_name()
         )
-        self._arm_get_ee_pose_joint_config_srv = rospy.Service(
-            "%s/panda_arm/get_ee_pose_joint_config" % rospy.get_name().split("/")[-1],
+        self._arm_get_ee_pose_joint_config_srv = ros.Service(
+            "%s/panda_arm/get_ee_pose_joint_config" % ros.get_name().split("/")[-1],
             GetEePoseJointConfig,
             self._arm_get_ee_pose_joint_config,
         )
-        rospy.logdebug(
-            "Creating '%s/get_random_joint_positions' service." % rospy.get_name()
+        ros.logdebug(
+            "Creating '%s/get_random_joint_positions' service." % ros.get_name()
         )
-        self._get_random_joints_positions_srv = rospy.Service(
-            "%s/get_random_joint_positions" % rospy.get_name().split("/")[-1],
+        self._get_random_joints_positions_srv = ros.Service(
+            "%s/get_random_joint_positions" % ros.get_name().split("/")[-1],
             GetRandomJointPositions,
             self._get_random_joint_positions_callback,
         )
-        rospy.logdebug("Creating '%s/get_random_ee_pose' service." % rospy.get_name())
-        self._get_random_ee_pose_srv = rospy.Service(
-            "%s/get_random_ee_pose" % rospy.get_name().split("/")[-1],
+        ros.logdebug("Creating '%s/get_random_ee_pose' service." % ros.get_name())
+        self._get_random_ee_pose_srv = ros.Service(
+            "%s/get_random_ee_pose" % ros.get_name().split("/")[-1],
             GetRandomEePose,
             self._get_random_ee_pose_callback,
         )
-        rospy.logdebug("Creating '%s/set_joint_positions' service." % rospy.get_name())
-        self._set_joint_positions_srv = rospy.Service(
-            "%s/set_joint_positions" % rospy.get_name().split("/")[-1],
+        ros.logdebug("Creating '%s/set_joint_positions' service." % ros.get_name())
+        self._set_joint_positions_srv = ros.Service(
+            "%s/set_joint_positions" % ros.get_name().split("/")[-1],
             SetJointPositions,
             self._set_joint_positions_callback,
         )
         if load_extra_services:
-            rospy.logdebug("Creating '%s/panda_arm/get_ee' service." % rospy.get_name())
-            self._arm_get_ee = rospy.Service(
-                "%s/panda_arm/get_ee" % rospy.get_name().split("/")[-1],
+            ros.logdebug("Creating '%s/panda_arm/get_ee' service." % ros.get_name())
+            self._arm_get_ee = ros.Service(
+                "%s/panda_arm/get_ee" % ros.get_name().split("/")[-1],
                 GetEe,
                 self._arm_get_ee_callback,
             )
-            rospy.logdebug("Creating '%s/panda_arm/set_ee' service." % rospy.get_name())
-            self._arm_set_ee = rospy.Service(
-                "%s/panda_arm/set_ee" % rospy.get_name().split("/")[-1],
+            ros.logdebug("Creating '%s/panda_arm/set_ee' service." % ros.get_name())
+            self._arm_set_ee = ros.Service(
+                "%s/panda_arm/set_ee" % ros.get_name().split("/")[-1],
                 SetEe,
                 self._arm_set_ee_callback,
             )
-            rospy.logdebug(
-                "Creating '%s/panda_arm/get_ee_pose' service." % rospy.get_name()
+            ros.logdebug(
+                "Creating '%s/panda_arm/get_ee_pose' service." % ros.get_name()
             )
-            self._arm_get_ee_pose_srv = rospy.Service(
-                "%s/panda_arm/get_ee_pose" % rospy.get_name().split("/")[-1],
+            self._arm_get_ee_pose_srv = ros.Service(
+                "%s/panda_arm/get_ee_pose" % ros.get_name().split("/")[-1],
                 GetEePose,
                 self._arm_get_ee_pose_callback,
             )
-            rospy.logdebug(
-                "Creating '%s/panda_arm/get_ee_rpy' service." % rospy.get_name()
+            ros.logdebug(
+                "Creating '%s/panda_arm/get_ee_rpy' service." % ros.get_name()
             )
-            self._arm_get_ee_rpy_srv = rospy.Service(
-                "%s/panda_arm/get_ee_rpy" % rospy.get_name().split("/")[-1],
+            self._arm_get_ee_rpy_srv = ros.Service(
+                "%s/panda_arm/get_ee_rpy" % ros.get_name().split("/")[-1],
                 GetEeRpy,
                 self._arm_get_ee_rpy_callback,
             )
-            rospy.logdebug(
-                "Creating '%s/get_controlled_joints' service." % rospy.get_name()
+            ros.logdebug(
+                "Creating '%s/get_controlled_joints' service." % ros.get_name()
             )
-            self._get_controlled_joints_srv = rospy.Service(
-                "%s/get_controlled_joints" % rospy.get_name().split("/")[-1],
+            self._get_controlled_joints_srv = ros.Service(
+                "%s/get_controlled_joints" % ros.get_name().split("/")[-1],
                 GetMoveItControlledJoints,
                 self._get_controlled_joints_cb,
             )
-            rospy.logdebug(
+            ros.logdebug(
                 "Creating '%s/panda_arm/set_joint_positions' service."
-                % rospy.get_name()
+                % ros.get_name()
             )
-            self._arm_set_joint_positions_srv = rospy.Service(
-                "%s/panda_arm/set_joint_positions" % rospy.get_name().split("/")[-1],
+            self._arm_set_joint_positions_srv = ros.Service(
+                "%s/panda_arm/set_joint_positions" % ros.get_name().split("/")[-1],
                 SetJointPositions,
                 self._arm_set_joint_positions_callback,
             )
             if self._load_gripper:
-                rospy.logdebug(
+                ros.logdebug(
                     "Creating '%s/panda_hand/set_joint_positions' service."
-                    % rospy.get_name()
+                    % ros.get_name()
                 )
-                self._hand_set_joint_positions_srv = rospy.Service(
+                self._hand_set_joint_positions_srv = ros.Service(
                     "%s/panda_hand/set_joint_positions"
-                    % rospy.get_name().split("/")[-1],
+                    % ros.get_name().split("/")[-1],
                     SetJointPositions,
                     self._hand_set_joint_positions_callback,
                 )
 
         # Planning scene services.
-        rospy.logdebug(
-            "Creating '%s/planning_scene/add_box' service." % rospy.get_name()
+        ros.logdebug(
+            "Creating '%s/planning_scene/add_box' service." % ros.get_name()
         )
-        self._scene_add_box_srv = rospy.Service(
-            "%s/planning_scene/add_box" % rospy.get_name().split("/")[-1],
+        self._scene_add_box_srv = ros.Service(
+            "%s/planning_scene/add_box" % ros.get_name().split("/")[-1],
             AddBox,
             self._scene_add_box_callback,
         )
-        rospy.logdebug(
-            "Creating '%s/planning_scene/add_plane' service." % rospy.get_name()
+        ros.logdebug(
+            "Creating '%s/planning_scene/add_plane' service." % ros.get_name()
         )
-        self._scene_add_plane_srv = rospy.Service(
-            "%s/planning_scene/add_plane" % rospy.get_name().split("/")[-1],
+        self._scene_add_plane_srv = ros.Service(
+            "%s/planning_scene/add_plane" % ros.get_name().split("/")[-1],
             AddPlane,
             self._scene_add_plane_callback,
         )
 
-        rospy.loginfo("'%s' services created successfully." % rospy.get_name())
+        ros.loginfo("'%s' services created successfully." % ros.get_name())
 
         # Initialise service msgs.
         self.ee_pose_target = Pose()
@@ -340,13 +343,13 @@ class PandaMoveItPlannerServerWelding(object):
         # state masks. #########################
         ########################################
         self._joint_states = None
-        while self._joint_states is None and not rospy.is_shutdown():
+        while self._joint_states is None and not ros.is_shutdown():
             try:
-                self._joint_states = rospy.wait_for_message(
+                self._joint_states = ros.wait_for_message(
                     "joint_states", JointState, timeout=1.0
                 )
             except ROSException:
-                rospy.logwarn(
+                ros.logwarn(
                     "Current joint_states not ready yet, retrying for getting "
                     "'joint_states'."
                 )
@@ -380,7 +383,7 @@ class PandaMoveItPlannerServerWelding(object):
         # Retrieve panda joint limits.
         self._joint_limits = load_panda_joint_limits()
         if not self._joint_limits:
-            rospy.logerr(
+            ros.logerr(
                 "Unable to load Panda joint limits. Ensure 'joint_limits.yaml' from "
                 "'franka_description' is loaded in 'put_robot_in_world.launch'."
             )
@@ -399,10 +402,10 @@ class PandaMoveItPlannerServerWelding(object):
             'panda_moveit_planner_server/max_velocity_scaling_factor' and
             'panda_moveit_planner_server/max_acceleration_scaling_factor' topics.
         """
-        self._max_velocity_scaling = rospy.get_param(
+        self._max_velocity_scaling = ros.get_param(
             "~max_velocity_scaling_factor", None
         )
-        self._max_acceleration_scaling = rospy.get_param(
+        self._max_acceleration_scaling = ros.get_param(
             "~max_acceleration_scaling_factor", None
         )
 
@@ -454,7 +457,7 @@ class PandaMoveItPlannerServerWelding(object):
             str: The error message, or an empty string if successful.
         """
         try:
-            rospy.logdebug(
+            ros.logdebug(
                 f"{group.capitalize()} joint positions setpoint: {positions}"
             )
             getattr(self, f"move_group_{group}").set_joint_value_target(positions)
@@ -480,7 +483,7 @@ class PandaMoveItPlannerServerWelding(object):
         """
         control_group = control_group.lower()
         if control_group not in ["arm", "hand", "both"]:
-            rospy.logwarn(
+            ros.logwarn(
                 f"Control group '{control_group}' does not exist. Please specify a "
                 "valid control group. Valid values are 'arm', 'hand' or 'both'."
             )
@@ -494,7 +497,7 @@ class PandaMoveItPlannerServerWelding(object):
             groups.append(self.move_group_hand if self._load_gripper else None)
         for group in groups:
             if group is None:
-                rospy.logwarn("Hand commands not executed since gripper is not loaded.")
+                ros.logwarn("Hand commands not executed since gripper is not loaded.")
                 retval.append(False)
                 continue
 
@@ -505,7 +508,7 @@ class PandaMoveItPlannerServerWelding(object):
                     group.stop()
             else:
                 err_msg = translate_moveit_error_code(error_code)
-                rospy.logwarn(
+                ros.logwarn(
                     f"No plan found for the current {group.get_name()} setpoints "
                     f"since '{err_msg}'."
                 )
@@ -564,7 +567,7 @@ class PandaMoveItPlannerServerWelding(object):
                         "positions"
                     )
                 )
-                rospy.logwarn(
+                ros.logwarn(
                     f"You specified {joint_positions_count} joint positions while the "
                     f"Panda robot {control_group_str} contains "
                     f"{controlled_joints_size} active joints. As a result, the "
@@ -580,7 +583,7 @@ class PandaMoveItPlannerServerWelding(object):
         # Check if duplicate joint names were given.
         duplicate_joint_names = get_duplicate_list(joint_names)
         if duplicate_joint_names:
-            rospy.logwarn(
+            ros.logwarn(
                 f"You specified duplicate joint names ({duplicate_joint_names}). "
                 "As a result, the duplicate joint names are ignored."
             )
@@ -631,7 +634,7 @@ class PandaMoveItPlannerServerWelding(object):
                     ),
                     log_message=f"No valid joint names were given. {logwarn_msg}",
                 )
-            rospy.logwarn(logwarn_msg)
+            ros.logwarn(logwarn_msg)
 
         # Check if each joint name has a corresponding joint position.
         if len(joint_names) != len(joint_positions):
@@ -678,7 +681,7 @@ class PandaMoveItPlannerServerWelding(object):
         joint_positions_command_length = len(joint_limits_values)
         joint_names_length = len(joint_limits_names)
         if joint_positions_command_length != joint_names_length:
-            rospy.logwarn(
+            ros.logwarn(
                 "Joint limits ignored as the number of joints ({}) is "
                 "unequal to the number of limit values ({}).".format(
                     joint_names_length, joint_positions_command_length
@@ -713,7 +716,7 @@ class PandaMoveItPlannerServerWelding(object):
                     "they are not valid joint limits",
                 )
             )
-            rospy.logwarn(
+            ros.logwarn(
                 f"Joint {warn_strings[0]} '{warn_strings[1]}' "
                 f"{warn_strings[2]} ignored since {warn_strings[3]}. Valid "
                 f"values are '{valid_joint_names}'."
@@ -761,7 +764,7 @@ class PandaMoveItPlannerServerWelding(object):
                 if singular
                 else ", ".join(ignored_joint_limit_joint)
             )
-            rospy.logwarn(
+            ros.logwarn(
                 f"Joint limits specified on {joint_or_joints} "
                 f"{ignored_joint_limit_joint_str} were ignored as both a min and max "
                 "limit need to be specified."
@@ -839,7 +842,7 @@ class PandaMoveItPlannerServerWelding(object):
                     loaded or no valid random hand joint values could be sampled.
         """
         # Retrieve unbounded random joint values.
-        rospy.logdebug("Retrieving unbounded random joint values.")
+        ros.logdebug("Retrieving unbounded random joint values.")
         random_arm_joint_values = self._get_random_joint_values("arm")
         random_hand_joint_values = (
             self._get_random_joint_values("hand") if self._load_gripper else None
@@ -848,7 +851,7 @@ class PandaMoveItPlannerServerWelding(object):
             return random_arm_joint_values, random_hand_joint_values
 
         # Notify the user if joint limits are not valid with the panda joint limits.
-        rospy.logdebug("Checking if joint limits are valid.")
+        ros.logdebug("Checking if joint limits are valid.")
         invalid_joint_limits = [
             joint_name
             for joint_name in joint_limits
@@ -895,7 +898,7 @@ class PandaMoveItPlannerServerWelding(object):
         )
         for attempt in range(max_attempts):
             # Retrieve valid random joint values.
-            rospy.logdebug(
+            ros.logdebug(
                 f"Retrieving valid random joint values. Attempt {attempt + 1} of "
                 f"{max_attempts}."
             )
@@ -914,7 +917,7 @@ class PandaMoveItPlannerServerWelding(object):
                     joint_commands_valid[limb] = True
 
             # Check if joint values are valid.
-            rospy.logdebug("Checking if joint values are valid.")
+            ros.logdebug("Checking if joint values are valid.")
             for limb in ["arm", "hand"]:
                 if joint_commands_valid[limb] or not random_joint_values[limb]:
                     continue
@@ -930,14 +933,14 @@ class PandaMoveItPlannerServerWelding(object):
             if all(joint_commands_valid.values()):
                 break
             elif attempt == max_attempts - 1:
-                rospy.logwarn(
+                ros.logwarn(
                     "Failed to sample valid random joint positions within the maximum "
                     f"number of attempts ({max_attempts})."
                 )
                 random_arm_joint_values, random_hand_joint_values = None, None
                 break
 
-            rospy.logwarn(
+            ros.logwarn(
                 "Failed to sample valid random joint positions from the bounding "
                 "region. Trying again."
             )
@@ -962,7 +965,7 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`~dynamic_reconfigure.encoding.Config`: Modified dynamic reconfigure
                 configuration object.
         """
-        rospy.logdebug(
+        ros.logdebug(
             (
                 "Reconfigure Request: max_vel_scaling - {max_velocity_scaling_factor} "
                 "max_acc_scaling - {max_acceleration_scaling_factor}"
@@ -972,7 +975,7 @@ class PandaMoveItPlannerServerWelding(object):
             # Update initial values to user supplied parameters.
             if self._max_velocity_scaling:
                 if self._max_velocity_scaling < 0.0 or self._max_velocity_scaling > 1.0:
-                    rospy.logwarn(
+                    ros.logwarn(
                         "Max velocity scaling factor was clipped since it was not "
                         "between 0.01 and 1.0."
                     )
@@ -983,7 +986,7 @@ class PandaMoveItPlannerServerWelding(object):
                     self._max_acceleration_scaling < 0.0
                     or self._max_acceleration_scaling > 1.0
                 ):
-                    rospy.logwarn(
+                    ros.logwarn(
                         "Max acceleration scaling factor was clipped since it was not "
                         "between 0.01 and 1.0."
                     )
@@ -1046,7 +1049,7 @@ class PandaMoveItPlannerServerWelding(object):
 
         # Make sure quaternion is normalized.
         if quaternion_norm(get_ee_pose_joint_configuration.pose.orientation) != 1.0:
-            rospy.logwarn(
+            ros.logwarn(
                 "The quaternion in the set ee pose was normalized since MoveIt expects "
                 "normalized quaternions."
             )
@@ -1061,7 +1064,7 @@ class PandaMoveItPlannerServerWelding(object):
         while (
             n_sample < max_attempts
         ):  # Continue till joint positions are valid or max samples size.
-            rospy.logdebug("Retrieving joint configuration for given EE pose.")
+            ros.logdebug("Retrieving joint configuration for given EE pose.")
             try:
                 retval, plan, _, _ = self.move_group_arm.plan(pose_target)
             except MoveItCommanderException:
@@ -1075,7 +1078,7 @@ class PandaMoveItPlannerServerWelding(object):
                 resp.message = "Everything went OK"
                 break
             else:
-                rospy.logwarn(
+                ros.logwarn(
                     "Failed to retrieve joint configuration for given EE pose. Trying "
                     f"again ({n_sample})."
                 )
@@ -1083,7 +1086,7 @@ class PandaMoveItPlannerServerWelding(object):
 
         # Return response.
         if n_sample >= max_attempts:
-            rospy.logwarn(
+            ros.logwarn(
                 "Joint configuration could not be retrieved for given EE pose within "
                 f"the maximum number of attempts ({max_attempts})."
             )
@@ -1104,7 +1107,7 @@ class PandaMoveItPlannerServerWelding(object):
         """
         # Make sure quaternion is normalized.
         if quaternion_norm(set_ee_pose_req.pose.orientation) != 1.0:
-            rospy.logwarn(
+            ros.logwarn(
                 "The quaternion in the set ee pose was normalized since MoveIt expects "
                 "normalized quaternions."
             )
@@ -1113,7 +1116,7 @@ class PandaMoveItPlannerServerWelding(object):
             )
 
         # Fill trajectory message.
-        rospy.logdebug("Setting ee pose.")
+        ros.logdebug("Setting ee pose.")
         resp = SetEePoseResponse()
         self.ee_pose_target = set_ee_pose_req.pose
 
@@ -1134,7 +1137,7 @@ class PandaMoveItPlannerServerWelding(object):
                 resp.success = True
                 resp.message = "Everything went OK"
         except MoveItCommanderException as e:
-            rospy.logwarn(e.args[0])
+            ros.logwarn(e.args[0])
             resp.success = False
             resp.message = e.args[0]
         return resp
@@ -1151,7 +1154,7 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`panda_gazebo.srv.SetJointPositionResponse`: Response message
                 containing (success bool, message).
         """
-        rospy.logdebug("Setting joint position targets.")
+        ros.logdebug("Setting joint position targets.")
 
         # Create moveit_commander command.
         resp = SetJointPositionsResponse()
@@ -1163,7 +1166,7 @@ class PandaMoveItPlannerServerWelding(object):
             logwarn_msg = "Panda robot joint positions not set as " + lower_first_char(
                 e.log_message
             )
-            rospy.logwarn(logwarn_msg)
+            ros.logwarn(logwarn_msg)
             resp.success = False
             resp.message = e.args[0]
             return resp
@@ -1180,7 +1183,7 @@ class PandaMoveItPlannerServerWelding(object):
             if not group_success:
                 success = False
                 failed_groups.append(group)
-                rospy.logwarn(
+                ros.logwarn(
                     f"Setting {group} joint position targets failed since there was an "
                     f"{lower_first_char(group_error_msg)}"
                 )
@@ -1197,7 +1200,7 @@ class PandaMoveItPlannerServerWelding(object):
             return resp
 
         # Execute setpoints.
-        rospy.logdebug("Executing joint positions setpoint.")
+        ros.logdebug("Executing joint positions setpoint.")
         try:
             retval, err_msg = self._execute()
             if not all(retval):
@@ -1209,7 +1212,7 @@ class PandaMoveItPlannerServerWelding(object):
                 resp.success = True
                 resp.message = "Everything went OK"
         except MoveItCommanderException as e:
-            rospy.logwarn(e.args[0])
+            ros.logwarn(e.args[0])
             resp.success = False
             resp.message = e.args[0]
         return resp
@@ -1225,7 +1228,7 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`panda_gazebo.srv.SetJointPositionResponse`: Response message
                 containing (success bool, message).
         """
-        rospy.logdebug("Setting arm joint position targets.")
+        ros.logdebug("Setting arm joint position targets.")
 
         # Create moveit_commander command.
         resp = SetJointPositionsResponse()
@@ -1237,22 +1240,22 @@ class PandaMoveItPlannerServerWelding(object):
             logwarn_msg = "Arm joint Positions not set as " + lower_first_char(
                 e.log_message
             )
-            rospy.logwarn(logwarn_msg)
+            ros.logwarn(logwarn_msg)
             resp.success = False
             resp.message = e.args[0]
             return resp
 
         # Set joint positions setpoint.
         arm_joint_states = self.move_group_arm.get_current_joint_values()
-        rospy.logdebug(f"Current arm joint positions: {arm_joint_states}")
+        ros.logdebug(f"Current arm joint positions: {arm_joint_states}")
         self.joint_positions_target = moveit_commander_arm_commands
         try:
-            rospy.logdebug(
+            ros.logdebug(
                 "Arm joint positions setpoint: %s" % moveit_commander_arm_commands
             )
             self.move_group_arm.set_joint_value_target(moveit_commander_arm_commands)
         except MoveItCommanderException as e:
-            rospy.logwarn(
+            ros.logwarn(
                 "Setting arm joint position targets failed since there was an %s"
                 % (lower_first_char(e.args[0]))
             )
@@ -1261,7 +1264,7 @@ class PandaMoveItPlannerServerWelding(object):
             return resp
 
         # Execute setpoint.
-        rospy.logdebug("Executing joint positions setpoint.")
+        ros.logdebug("Executing joint positions setpoint.")
         try:
             retval, err_msg = self._execute(control_group="arm")
             if not all(retval):
@@ -1273,7 +1276,7 @@ class PandaMoveItPlannerServerWelding(object):
                 resp.success = True
                 resp.message = "Everything went OK"
         except MoveItCommanderException as e:
-            rospy.logwarn(e.args[0])
+            ros.logwarn(e.args[0])
             resp.success = False
             resp.message = e.args[0]
         return resp
@@ -1289,7 +1292,7 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`panda_gazebo.srv.SetJointPositionResponse`: Response message
                 containing (success bool, message).
         """
-        rospy.logdebug("Setting hand joint position targets.")
+        ros.logdebug("Setting hand joint position targets.")
 
         # Create moveit_commander command.
         resp = SetJointPositionsResponse()
@@ -1301,20 +1304,20 @@ class PandaMoveItPlannerServerWelding(object):
             logwarn_msg = "Hand joint Positions not set as " + lower_first_char(
                 e.log_message
             )
-            rospy.logwarn(logwarn_msg)
+            ros.logwarn(logwarn_msg)
             resp.success = False
             resp.message = e.args[0]
             return resp
 
         # Set joint positions setpoint.
         hand_joint_states = self.move_group_hand.get_current_joint_values()
-        rospy.logdebug(f"Current hand joint positions: {hand_joint_states}")
+        ros.logdebug(f"Current hand joint positions: {hand_joint_states}")
         self.joint_positions_target = hand_moveit_set_point
         try:
-            rospy.logdebug("Hand joint positions setpoint: %s" % hand_moveit_set_point)
+            ros.logdebug("Hand joint positions setpoint: %s" % hand_moveit_set_point)
             self.move_group_hand.set_joint_value_target(hand_moveit_set_point)
         except MoveItCommanderException as e:
-            rospy.logwarn(
+            ros.logwarn(
                 "Setting hand joint position targets failed since there was an %s"
                 % (lower_first_char(e.args[0]),)
             )
@@ -1323,7 +1326,7 @@ class PandaMoveItPlannerServerWelding(object):
             return resp
 
         # Execute setpoints.
-        rospy.logdebug("Executing joint positions setpoint.")
+        ros.logdebug("Executing joint positions setpoint.")
         try:
             retval, err_msg = self._execute(control_group="hand")
             if not all(retval):
@@ -1336,7 +1339,7 @@ class PandaMoveItPlannerServerWelding(object):
                 resp.success = True
                 resp.message = "Everything went OK"
         except MoveItCommanderException as e:
-            rospy.logwarn(e.args[0])
+            ros.logwarn(e.args[0])
             resp.success = False
             resp.message = e.args[0]
         return resp
@@ -1350,7 +1353,7 @@ class PandaMoveItPlannerServerWelding(object):
         Returns:
             :obj:`geometry_msgs.msg.PoseStamped`: The current end effector pose.
         """
-        rospy.logdebug("Retrieving ee pose.")
+        ros.logdebug("Retrieving ee pose.")
         ee_pose = self.move_group_arm.get_current_pose()
         resp = GetEePoseResponse()
         resp.pose = ee_pose.pose
@@ -1368,7 +1371,7 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`panda_gazebo.srv.GetEeResponse`: Response message containing
                 containing the roll (x), yaw (z), pitch (y) euler angles.
         """
-        rospy.logdebug("Retrieving ee orientation.")
+        ros.logdebug("Retrieving ee orientation.")
         ee_rpy = self.move_group_arm.get_current_rpy()
         resp = GetEeRpyResponse()
         resp.r = ee_rpy[0]
@@ -1388,7 +1391,7 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`panda_gazebo.srv.GetEeResponse`: Response message containing the name
                 of the current EE.
         """
-        rospy.logdebug("Retrieving ee name.")
+        ros.logdebug("Retrieving ee name.")
         resp = GetEeResponse()
         resp.ee_name = self.move_group_arm.get_end_effector_link()
         resp.success = True
@@ -1406,19 +1409,19 @@ class PandaMoveItPlannerServerWelding(object):
             :obj:`panda_gazebo.srv.SetEeResponse`: Response message containing (success
                 bool, message).
         """
-        rospy.logdebug(f"Setting ee to '{set_ee_req.ee_name}'.")
+        ros.logdebug(f"Setting ee to '{set_ee_req.ee_name}'.")
         resp = SetEeResponse()
         if self._link_exists(set_ee_req.ee_name):  # Check if valid.
             try:
                 self.move_group_arm.set_end_effector_link(set_ee_req.ee_name)
             except MoveItCommanderException as e:
-                rospy.logwarn("Ee could not be set.")
+                ros.logwarn("Ee could not be set.")
                 resp.success = False
                 resp.message = e.args[0]
             resp.success = True
             resp.message = "Everything went OK"
         else:
-            rospy.logwarn(
+            ros.logwarn(
                 f"EE could not be as '{set_ee_req.ee_name}' is not a valid ee link."
             )
             resp.success = False
@@ -1461,7 +1464,7 @@ class PandaMoveItPlannerServerWelding(object):
                 joint_limits_names, get_random_position_req.joint_limits.values
             )
         else:
-            rospy.logwarn(
+            ros.logwarn(
                 "Joint limits ignored as either the joint names or the joint values "
                 "were not specified."
             )
@@ -1474,7 +1477,7 @@ class PandaMoveItPlannerServerWelding(object):
                 random_hand_joint_values,
             ) = self._get_bounded_random_joint_values(joint_limits, max_attempts)
         except JointLimitsInvalidError as e:
-            rospy.logwarn(e.log_message)
+            ros.logwarn(e.log_message)
             resp.success = False
             resp.message = e.args[0]
             return resp
@@ -1538,11 +1541,11 @@ class PandaMoveItPlannerServerWelding(object):
         )
 
         # Get a random ee pose.
-        rospy.logdebug("Retrieving a valid random end effector pose.")
+        ros.logdebug("Retrieving a valid random end effector pose.")
         try:
             random_ee_pose_unbounded = self.move_group_arm.get_random_pose()
         except MoveItCommanderException as e:
-            rospy.logwarn("No random ee pose could be retrieved: %s" % e.args[0])
+            ros.logwarn("No random ee pose could be retrieved: %s" % e.args[0])
             resp.success = False
             resp.message = "Random ee pose could not be retrieved."
             return resp
@@ -1550,7 +1553,7 @@ class PandaMoveItPlannerServerWelding(object):
         # Retrieve corresponding joint positions.
         retval, plan, _, _ = self.move_group_arm.plan(random_ee_pose_unbounded)
         if not retval:
-            rospy.logwarn(
+            ros.logwarn(
                 "Corresponding joint configuration could not be retrieved for the"
                 "random ee pose."
             )
@@ -1659,13 +1662,13 @@ class PandaMoveItPlannerServerWelding(object):
                 resp.joint_positions = list(plan.joint_trajectory.points[-1].positions)
                 return resp
 
-            rospy.logwarn(
+            ros.logwarn(
                 "Random end effector pose not within the set boundary region. "
                 f"Trying again ({n_sample+1})."
             )
 
         # Return failure if no valid ee pose was found.
-        rospy.logwarn(
+        ros.logwarn(
             "No valid random end effector pose could be found within the set "
             "boundary region within the set number of attempts (%s). " % max_attempts
         )
@@ -1716,7 +1719,7 @@ class PandaMoveItPlannerServerWelding(object):
 
         # Warn users if box is not visible in RViz.
         if add_box_req.size == (0.0, 0.0, 0.0):
-            rospy.logwarn(
+            ros.logwarn(
                 f"The size of box '{box_name}' was set to (0, 0, 0). The box will not "
                 "be visible in RViz."
             )

@@ -1,125 +1,81 @@
 #!/usr/bin/env python3
-"""Small node that spins up a dynamic reconfigure server that can be used to change the
-panda arm joint positions and gripper width.
-"""
-import actionlib
-import rospy
-from dynamic_reconfigure.server import Server
-from franka_gripper.msg import MoveAction, MoveGoal
+"""Small node that publishes Panda arm joint positions and gripper width commands."""
+
+import rclpy
+from franka_msgs.action import GripperCommand
+from rclpy.action import ActionClient
+from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 
-from panda_gazebo.cfg import JointPositionsConfig
+from panda_gazebo.common.helpers import wait_for_message
 
-# Constants for topic names
 ARM_TOPIC = "/panda_arm_joint_position_controller/command"
 JOINT_STATES_TOPIC = "joint_states"
-GRIPPER_ACTION_NAME = "franka_gripper/move"
+GRIPPER_ACTION_NAME = "franka_gripper/gripper_action"
 
 
-class JointPositionsDynamicReconfigureServer:
-    """A small node that spins up a dynamic reconfigure server that can be used to
-    change the panda arm joint positions and gripper width.
-    """
+class JointPositionsDynamicReconfigureServer(Node):
+    """Node that publishes joint position commands and optional gripper commands."""
 
     def __init__(self):
-        """Initialise JointPositionsDynamicReconfigureServer object."""
-        rospy.loginfo("Starting dynamic reconfigure server...")
-        self.srv = Server(JointPositionsConfig, self.callback)
+        super().__init__("joint_positions_reconfig_server")
+        self.get_logger().info("Starting ROS2 joint positions helper node")
 
-        # Create joint positions publisher.
-        self.arm_pub = rospy.Publisher(ARM_TOPIC, Float64MultiArray, queue_size=10)
+        self.arm_pub = self.create_publisher(Float64MultiArray, ARM_TOPIC, 10)
+        self.gripper_client = ActionClient(self, GripperCommand, GRIPPER_ACTION_NAME)
+        self.gripper_connected = self.gripper_client.wait_for_server(timeout_sec=5.0)
 
-        # Create gripper width publisher.
-        self.gripper_move_client = actionlib.SimpleActionClient(
-            GRIPPER_ACTION_NAME, MoveAction
-        )
-        self.gripper_connected = self.gripper_move_client.wait_for_server(
-            timeout=rospy.Duration(secs=5)
-        )
+        self._init_joint_state_timer = self.create_timer(0.5, self._initialize_from_joint_states)
+        self._initialized = False
 
-    def callback(self, config, level):
-        """Dynamic reconfigure callback function.
+    def _initialize_from_joint_states(self):
+        if self._initialized:
+            return
+        try:
+            joint_states = wait_for_message(self, JOINT_STATES_TOPIC, JointState, timeout_sec=1.0)
+        except TimeoutError:
+            self.get_logger().warn("Waiting for initial joint states...")
+            return
 
-        Args:
-            config (dict): Dictionary containing the new configuration.
-            level (int): Level of the dynamic reconfigure server. Represents the
-                variable that was changed or if -1 that the server was just started.
-        """
-        if level == -1:
-            self._initialize_joint_states(config)
-        else:
-            self._log_reconfigure_request(config)
-            if level < 7:
-                self._publish_joint_positions(config)
-            elif level in [7, 8]:
-                if self.gripper_connected:
-                    self._send_gripper_command(config)
-                else:
-                    rospy.logwarn_once(
-                        "Gripper commands not applied since the gripper command "
-                        "action was not found."
-                    )
-        return config
+        if not joint_states.position:
+            self.get_logger().warn("Received empty joint state positions")
+            return
 
-    def _initialize_joint_states(self, config):
-        """Set initial joint states.
+        msg = Float64MultiArray()
+        msg.data = list(joint_states.position[:7])
+        self.arm_pub.publish(msg)
+        self._initialized = True
+        self.get_logger().info("Initial joint position command published")
 
-        Args:
-            config (dict): Dictionary containing the new configuration.
-        """
-        rospy.loginfo("Waiting for initial joint states...")
-        joint_states = rospy.wait_for_message(JOINT_STATES_TOPIC, JointState)
-        position_dict = dict(zip(joint_states.name, joint_states.position))
-        set_values = list(position_dict.values())
-        config.update(
-            **dict(zip([key for key in config.keys() if key != "groups"], set_values))
-        )
-        rospy.loginfo("Initial joint states retrieved.")
-        rospy.loginfo("Dynamic reconfigure server started.")
+    def publish_joint_positions(self, positions):
+        msg = Float64MultiArray()
+        msg.data = list(positions[:7])
+        self.arm_pub.publish(msg)
 
-    def _log_reconfigure_request(self, config):
-        """Log reconfigure request.
+    def send_gripper_command(self, width, max_effort=0.0):
+        if not self.gripper_connected:
+            self.get_logger().warn("Gripper action server is unavailable")
+            return False
 
-        Args:
-            config (dict): Dictionary containing the new configuration.
-        """
-        rospy.loginfo(
-            (
-                "Reconfigure Request: {joint1_position}, {joint2_position}, "
-                "{joint3_position}, {joint4_position}, {joint5_position}, "
-                "{joint6_position}, {joint7_position}, {width}, {speed}"
-            ).format(**config)
-        )
+        goal = GripperCommand.Goal()
+        goal.command.position = float(width) / 2.0
+        goal.command.max_effort = float(max_effort)
+        send_goal_future = self.gripper_client.send_goal_async(goal)
+        rclpy.spin_until_future_complete(self, send_goal_future)
+        goal_handle = send_goal_future.result()
+        return goal_handle is not None and goal_handle.accepted
 
-    def _publish_joint_positions(self, config):
-        """Publish joint positions.
 
-        Args:
-            config (dict): Dictionary containing the new configuration.
-        """
-        self.arm_pub.publish(Float64MultiArray(data=list(config.values())[:7]))
-
-    def _send_gripper_command(self, config):
-        """Send gripper command.
-
-        Args:
-            config (dict): Dictionary containing the new configuration.
-        """
-        move_goal = MoveGoal(width=config["width"], speed=config["speed"])
-        self.gripper_move_client.send_goal(move_goal)
-        result = self.gripper_move_client.wait_for_result()
-        if not result:
-            rospy.logerr("Something went wrong while setting the gripper commands.")
+def main(args=None):
+    rclpy.init(args=args)
+    node = JointPositionsDynamicReconfigureServer()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
-    rospy.init_node("joint_positions_reconfig_server", anonymous=False)
-
-    try:
-        JointPositionsDynamicReconfigureServer()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        rospy.logerr("ROS node interrupted.")
-    except Exception as e:
-        rospy.logerr(f"Unexpected error occurred: {e}")
+    main()

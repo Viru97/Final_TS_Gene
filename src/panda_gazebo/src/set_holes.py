@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import time
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from gazebo_msgs.srv import SetModelState, GetModelState
 from gazebo_msgs.msg import ModelState
 from geometry_msgs.msg import Pose
@@ -9,8 +9,8 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from random import uniform
 
 def set_hole_position():
-    rospy.wait_for_service('/gazebo/set_model_state')
-    set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+    ros.wait_for_service('/gazebo/set_model_state')
+    set_state = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
 
     workpiece_model_name = "workpiece"
     hole_model_name = "hole"
@@ -51,8 +51,8 @@ def set_hole_position():
         set_state(hole_state)
 
 def get_model_state(model_name):
-    rospy.wait_for_service('/gazebo/get_model_state')
-    get_model_state_proxy = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+    ros.wait_for_service('/gazebo/get_model_state')
+    get_model_state_proxy = ros.ServiceProxy('/gazebo/get_model_state', GetModelState)
 
     try:
         model_state = get_model_state_proxy(model_name, "world")
@@ -63,15 +63,15 @@ def get_model_state(model_name):
             return model_state, workpiece_length, workpiece_width
         else:
             return None, None, None
-    except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to get model state for '{model_name}': {str(e)}")
+    except ros.ServiceException as e:
+        ros.logerr(f"Failed to get model state for '{model_name}': {str(e)}")
         return None, None, None
 
 if __name__ == '__main__':
-    rospy.init_node('set_hole_position')
+    ros.init_node('set_hole_position')
     
     time.sleep(0.1)  # Add a delay    
     set_hole_position()
     
     time.sleep(0.1)  # Add a delay
-    rospy.spin()
+    ros.spin()

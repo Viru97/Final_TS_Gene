@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import time
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from random import uniform
 from gazebo_msgs.srv import SetModelState
 from gazebo_msgs.msg import ModelState
@@ -30,9 +30,9 @@ def randomize_hole_position():
     world_cordinates_hole_1 =transform_from_local_to_world(local_cordinates_hole_1, workpiece_pose)
     world_cordinates_hole_2 =transform_from_local_to_world(local_cordinates_hole_2, workpiece_pose)
     world_cordinates_hole_3 =transform_from_local_to_world(local_cordinates_hole_3, workpiece_pose)
-    rospy.loginfo(f"Hole_1_position in world_coordinates: {world_cordinates_hole_1}")
-    rospy.wait_for_service('/gazebo/set_model_state')
-    set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+    ros.loginfo(f"Hole_1_position in world_coordinates: {world_cordinates_hole_1}")
+    ros.wait_for_service('/gazebo/set_model_state')
+    set_state = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
 
     # # SET Holes POSITION # # #
     model_name_hole_1 = "hole_1"  # Replace with your hole model name
@@ -69,10 +69,10 @@ def randomize_hole_position():
         time.sleep(1)  # Add a delay
         set_state(hole_3_state)
         time.sleep(1)  # Add a delay
-        rospy.loginfo("Holes position randomized.")
-    except rospy.ServiceException as e:
-        rospy.logerr("Failed to call Gazebo service: %s", str(e))
+        ros.loginfo("Holes position randomized.")
+    except ros.ServiceException as e:
+        ros.logerr("Failed to call Gazebo service: %s", str(e))
 
 if __name__ == '__main__':
-    rospy.init_node('randomize_holes')
+    ros.init_node('randomize_holes')
     randomize_hole_position()

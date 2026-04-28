@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import time
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from random import uniform
 from gazebo_msgs.srv import SetModelState
 from gazebo_msgs.msg import ModelState
@@ -11,8 +11,8 @@ from get_model_info import get_model_state, write_pose_to_sdf_file
 
 
 def randomize_workpiece_position():
-    rospy.wait_for_service('/gazebo/set_model_state')
-    set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+    ros.wait_for_service('/gazebo/set_model_state')
+    set_state = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
 
     # # SET CUBES POSITION # # #
     model_name_model = "workpiece"  # Assign the model to a state
@@ -34,14 +34,14 @@ def randomize_workpiece_position():
     try:
         set_state(model_state)
         time.sleep(0.1)  # Add a delay
-        rospy.loginfo("workpiece position randomized.")
+        ros.loginfo("workpiece position randomized.")
         
-    except rospy.ServiceException as e:
-        rospy.logerr("Failed to call Gazebo service: %s", str(e))
+    except ros.ServiceException as e:
+        ros.logerr("Failed to call Gazebo service: %s", str(e))
 
 
 if __name__ == '__main__':
-    rospy.init_node('randomize_holes')
+    ros.init_node('randomize_holes')
     randomize_workpiece_position()
     workpiece_pose = get_model_state("workpiece")
     time.sleep(0.01)  # Add a delay

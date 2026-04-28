@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import math
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 import tf2_ros
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import Int32
@@ -18,13 +18,13 @@ def joint_state_callback(joint_state_msg):
 
     model_state = ModelState()
     model_state.model_name = 'workpiece_clone'
-    rospy.wait_for_service('/gazebo/set_model_state')
-    set_model_state_service = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+    ros.wait_for_service('/gazebo/set_model_state')
+    set_model_state_service = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
     try:
-        trans = tfBuffer.lookup_transform('world', 'panda_welding_tcp', rospy.Time(0))
+        trans = tfBuffer.lookup_transform('world', 'panda_welding_tcp', ros.Time(0))
         panda_pose = PoseStamped()
         panda_pose.header.frame_id = 'world'
-        panda_pose.header.stamp = rospy.Time.now()
+        panda_pose.header.stamp = ros.Time.now()
         panda_pose.pose.position.x = trans.transform.translation.x
         panda_pose.pose.position.y = trans.transform.translation.y
         panda_pose.pose.position.z = trans.transform.translation.z
@@ -52,23 +52,23 @@ def joint_state_callback(joint_state_msg):
 
         try:
             set_model_state_service(model_state)
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+        except ros.ServiceException as e:
+            ros.logerr(f"Service call failed: {e}")
         distance1_pub.publish(distance_1)
         distance2_pub.publish(distance_2)
         safety_violation_pub.publish(safety_violation)
 
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-        rospy.logwarn("Transform lookup failed!")
+        ros.logwarn("Transform lookup failed!")
 
 if __name__ == '__main__':
 
-    rospy.init_node('end_effector_localization')
+    ros.init_node('end_effector_localization')
     tfBuffer = tf2_ros.Buffer()
     listener = tf2_ros.TransformListener(tfBuffer)
    
-    joint_state_sub=rospy.Subscriber('/joint_states', JointState, joint_state_callback)
-    distance1_pub = rospy.Publisher('/distance_between_end_effector_and_hand1', Float32, queue_size=10)
-    distance2_pub = rospy.Publisher('/distance_between_end_effector_and_hand2', Float32, queue_size=10)
-    safety_violation_pub = rospy.Publisher('/safety_violation', Int32, queue_size=10)
-    rospy.spin()
+    joint_state_sub=ros.Subscriber('/joint_states', JointState, joint_state_callback)
+    distance1_pub = ros.Publisher('/distance_between_end_effector_and_hand1', Float32, queue_size=10)
+    distance2_pub = ros.Publisher('/distance_between_end_effector_and_hand2', Float32, queue_size=10)
+    safety_violation_pub = ros.Publisher('/safety_violation', Int32, queue_size=10)
+    ros.spin()

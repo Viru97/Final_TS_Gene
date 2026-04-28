@@ -2,7 +2,7 @@
 import math
 import time
 import numpy as np
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 import tf
 import tf2_ros
 from tf2_geometry_msgs import PointStamped
@@ -46,8 +46,8 @@ def TF_matrix(i,dh):
 
 def joint_state_callback(joint_state_msg):
     global last_transform_time
-    current_time = rospy.Time.now()
-    if current_time - last_transform_time < rospy.Duration(0.05):  # Limit to transform calculation every 0.1 second
+    current_time = ros.Time.now()
+    if current_time - last_transform_time < ros.Duration(0.05):  # Limit to transform calculation every 0.1 second
         return
     last_transform_time = current_time
 
@@ -77,32 +77,32 @@ def joint_state_callback(joint_state_msg):
         
     point = PoseStamped()
     point.header.frame_id = source_frame
-    point.header.stamp = rospy.Time.now()
+    point.header.stamp = ros.Time.now()
     point.pose=panda_pose
     # print("End Effector Position_world (X, Y, Z):", point.pose.position)
         
     try:
-        # converted_point = tfBuffer.transform(point, "panda_link0", timeout=rospy.Duration(10.0))
+        # converted_point = tfBuffer.transform(point, "panda_link0", timeout=ros.Duration(10.0))
         
         hand_model_pose_position=get_model_state("hand_2")
         hand_model_position=(hand_model_pose_position.position.x,hand_model_pose_position.position.y,hand_model_pose_position.position.z) 
         end_effector_position = (point.pose.position.x, point.pose.position.y, point.pose.position.z)
         distance = calculate_distance(end_effector_position, hand_model_position)
-        distance_pub = rospy.Publisher('/distance_between_end_effector_and_hand', Float32, queue_size=10)
+        distance_pub = ros.Publisher('/distance_between_end_effector_and_hand', Float32, queue_size=10)
         distance_pub.publish(distance)
         
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        rospy.logwarn("Transform lookup failed!")
+        ros.logwarn("Transform lookup failed!")
 
 
 
 if __name__ == '__main__':
-    rospy.init_node('end_effector_localization')
+    ros.init_node('end_effector_localization')
     
         
-    last_transform_time = rospy.Time.now()
-    rospy.Subscriber('/joint_states', JointState, joint_state_callback)
-    rospy.spin()
+    last_transform_time = ros.Time.now()
+    ros.Subscriber('/joint_states', JointState, joint_state_callback)
+    ros.spin()
     
          
     

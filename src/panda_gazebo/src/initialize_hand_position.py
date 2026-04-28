@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import math
 import time
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from random import uniform
 from gazebo_msgs.srv import SetModelState
 from gazebo_msgs.msg import ModelState
@@ -16,8 +16,8 @@ def calculate_distance(point1, point2):
 
 def randomize_hands_position():
      #Table location end points
-    rospy.wait_for_service('/gazebo/set_model_state')
-    set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+    ros.wait_for_service('/gazebo/set_model_state')
+    set_state = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
     workpiece_pose = get_model_state("workpiece")
     workpiece_cordinates=(workpiece_pose.position.x,workpiece_pose.position.y,workpiece_pose.position.z)
     workpiece_dimensions = get_model_dimensions("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/workpiece/model.sdf")
@@ -52,16 +52,16 @@ def randomize_hands_position():
     try:
         set_state(hand_1_model_state)
         time.sleep(0.1)  # Add a delay
-        rospy.loginfo("hand_1 position intialized.") 
+        ros.loginfo("hand_1 position intialized.") 
         set_state(hand_2_model_state)
         time.sleep(0.1)  # Add a delay
-        rospy.loginfo("hand_2 position intialized.") 
-    except rospy.ServiceException as e:
-        rospy.logerr("Failed to call Gazebo service: %s", str(e))
+        ros.loginfo("hand_2 position intialized.") 
+    except ros.ServiceException as e:
+        ros.logerr("Failed to call Gazebo service: %s", str(e))
 
 
 if __name__ == '__main__':
-    rospy.init_node('randomize_hands_position')
+    ros.init_node('randomize_hands_position')
     randomize_hands_position()
     
     

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import time
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 from gazebo_msgs.srv import DeleteModel, SpawnModel
 from geometry_msgs.msg import Pose
 from get_model_info import get_model_dimensions, get_model_state, set_dimensions_in_sdf, write_pose_to_sdf_file
@@ -11,27 +11,27 @@ def delete_existing_model(model_name):
     model_state = get_model_state(model_name)
     if model_state is not None:
         
-        rospy.wait_for_service('/gazebo/delete_model')
-        delete_model_proxy = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
+        ros.wait_for_service('/gazebo/delete_model')
+        delete_model_proxy = ros.ServiceProxy('/gazebo/delete_model', DeleteModel)
         try:
             delete_model_proxy(model_name)
-            rospy.loginfo(f"Model '{model_name}' deleted successfully.")
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Failed to delete model '{model_name}': {str(e)}")
+            ros.loginfo(f"Model '{model_name}' deleted successfully.")
+        except ros.ServiceException as e:
+            ros.logerr(f"Failed to delete model '{model_name}': {str(e)}")
     else:
-        rospy.loginfo(f"Model '{model_name}' does not exist")
+        ros.loginfo(f"Model '{model_name}' does not exist")
 
 def spawn_model(model_name, model_xml, pose, reference_frame="world"):
-    rospy.wait_for_service('/gazebo/spawn_sdf_model')
-    spawn_model_proxy = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+    ros.wait_for_service('/gazebo/spawn_sdf_model')
+    spawn_model_proxy = ros.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
     try:
         spawn_model_proxy(model_name, model_xml, " ", pose, reference_frame)
-        rospy.loginfo(f"Model '{model_name}' spawned successfully.")
-    except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to spawn model '{model_name}': {str(e)}")
+        ros.loginfo(f"Model '{model_name}' spawned successfully.")
+    except ros.ServiceException as e:
+        ros.logerr(f"Failed to spawn model '{model_name}': {str(e)}")
 
 if __name__ == '__main__':
-    rospy.init_node('respawn_safety_zones')
+    ros.init_node('respawn_safety_zones')
     workpiece_dimension = get_model_dimensions("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/workpiece/model.sdf")
   
     delete_existing_model("safety_green")                                                    # Delete the existing model
