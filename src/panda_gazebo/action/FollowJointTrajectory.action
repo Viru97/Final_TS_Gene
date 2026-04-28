@@ -27,13 +27,13 @@ control_msgs/JointTolerance[] path_tolerance
 # time" + goal_time_tolerance, the goal aborts with error_code set to
 # GOAL_TOLERANCE_VIOLATED
 control_msgs/JointTolerance[] goal_tolerance
-duration goal_time_tolerance
+builtin_interfaces/Duration goal_time_tolerance
 
 # Extra time axis attributes
 # NOTE: Used for automatic time axis generation
 bool create_time_axis  # Automatically create a time axis
 float64 time_axis_step  # Time axis step size
-duration timeout # Action server timeout. If set to 0, no timeout is used and action waits indefinitely.
+builtin_interfaces/Duration timeout # Action server timeout. If set to 0, no timeout is used and action waits indefinitely.
 
 ---
 int32 error_code
@@ -58,7 +58,7 @@ int32 ACTION_TIMEOUT = -6
 string error_string
 
 ---
-Header header
+std_msgs/Header header
 string[] joint_names
 trajectory_msgs/JointTrajectoryPoint desired
 trajectory_msgs/JointTrajectoryPoint actual

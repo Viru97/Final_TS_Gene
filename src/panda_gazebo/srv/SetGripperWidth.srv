@@ -6,7 +6,7 @@ float64 width       # Gripper width - ignored when the gripper is grasping.
 bool grasping       # The gripper simply moves if this is `false` ignoring the 'max_effort'.
 float64 max_effort  # The max effort used by the gripper.
 bool wait
-duration timeout # Action server timeout. If set to 0, no timeout is used and action waits indefinitely.
+builtin_interfaces/Duration timeout # Action server timeout. If set to 0, no timeout is used and action waits indefinitely.
 ---
 bool success
 string message

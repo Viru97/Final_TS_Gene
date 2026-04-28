@@ -15,68 +15,76 @@
  *
 */
 
-#include <functional>
+#include <rclcpp/rclcpp.hpp>
 
-#include <ignition/math.hh>
-#include "gazebo/physics/physics.hh"
-#include "gazebo/common/common.hh"
-#include "obstacles/stick.h"
+// Gazebo Harmonic Headers
+#include <gz/sim/System.hh>
+#include <gz/sim/Model.hh>
+#include <gz/sim/components/Pose.hh>
+#include <gz/sim/components/Actor.hh>
+#include <gz/plugin/Register.hh>
 
-using namespace gazebo;
-GZ_REGISTER_MODEL_PLUGIN(StickPlugin)
-
-#define FOLDING_ANIMATION "fold"
-
-/////////////////////////////////////////////////
-StickPlugin::StickPlugin()
+namespace obstacles
 {
-}
-
-/////////////////////////////////////////////////
-void StickPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
-{
-  this->actor = boost::dynamic_pointer_cast<physics::Actor>(_model);
-
-  this->connections.push_back(event::Events::ConnectWorldUpdateBegin(
-          std::bind(&StickPlugin::OnUpdate, this, std::placeholders::_1)));
-
-  // Initialize ros, if it has not already bee initialized.
-  if (!ros::isInitialized())
+  // In Gazebo Harmonic, plugins are Systems that inherit from specific interfaces
+  class StickPlugin :
+    public gz::sim::System,
+    public gz::sim::ISystemConfigure,
+    public gz::sim::ISystemPostUpdate
   {
-    int argc = 0;
-    char **argv = NULL;
-    ros::init(argc, argv, "gazebo_client",
-        ros::init_options::NoSigintHandler);
-  }
-}
+  public:
+    StickPlugin() = default;
+    ~StickPlugin() override = default;
 
-/////////////////////////////////////////////////
-void StickPlugin::OnUpdate(const common::UpdateInfo &_info)
-{
-  ignition::math::Pose3d pose = this->actor->WorldPose();
-  ROS_INFO_STREAM("Actor world Pose: " << pose.Pos().X() << ", " << pose.Pos().Y() << ", " << pose.Pos().Z());
-  auto skelAnims = this->actor->SkeletonAnimations();
-  auto folding_animation = skelAnims.find(FOLDING_ANIMATION);
-  if (folding_animation == skelAnims.end())
-  {
-    ROS_ERROR_STREAM("Skeleton animation " << FOLDING_ANIMATION << " not found.");
-  }
-  else
-  {
-    std::map<std::string, ignition::math::Matrix4d> node_pose = folding_animation->second->PoseAt(this->actor->ScriptTime(), true);
-    for (auto const& [key, val] : node_pose)
+    // This replaces the old Load() method
+    void Configure(const gz::sim::Entity &_entity,
+                   const std::shared_ptr<const sdf::Element> &_sdf,
+                   gz::sim::EntityComponentManager &_ecm,
+                   gz::sim::EventManager &_eventMgr) override
     {
-      ROS_INFO_STREAM("Pose of node " << key << " is \n" <<
-            val(0,0) << " " << val(0,1) << " " <<  val(0,2) << " " <<  val(0,3) << "\n" << 
-            val(1,0) << " " << val(1,1) << " " <<  val(1,2) << " " <<  val(1,3) << "\n" << 
-            val(2,0) << " " << val(2,1) << " " <<  val(2,2) << " " <<  val(2,3) << "\n" << 
-            val(3,0) << " " << val(3,1) << " " <<  val(3,2) << " " <<  val(3,3));
+      // 1. Initialize ROS 2 if it hasn't been initialized yet
+      if (!rclcpp::ok()) {
+        rclcpp::init(0, nullptr);
+      }
+
+      // 2. Create the ROS 2 Node
+      ros_node_ = rclcpp::Node::make_shared("stick_plugin_node");
+
+      // 3. Store the model entity so we can query it later
+      model_ = gz::sim::Model(_entity);
+
+      RCLCPP_INFO(ros_node_->get_logger(), "StickPlugin successfully loaded in Gazebo Harmonic!");
     }
-  }
+
+    // This replaces the old OnUpdate() method
+    void PostUpdate(const gz::sim::UpdateInfo &_info,
+                    const gz::sim::EntityComponentManager &_ecm) override
+    {
+      // We only want to process updates if the simulation is not paused
+      if (_info.paused) return;
+
+      // 4. In ECS, we query the Entity Component Manager (ECM) for the Pose component of our model
+      auto poseComp = _ecm.Component<gz::sim::components::Pose>(model_.Entity());
+
+      if (poseComp) {
+        auto pose = poseComp->Data();
+        RCLCPP_INFO_STREAM(ros_node_->get_logger(),
+          "Actor world Pose: " << pose.Pos().X() << ", "
+                               << pose.Pos().Y() << ", "
+                               << pose.Pos().Z());
+      }
+    }
+
+  private:
+    rclcpp::Node::SharedPtr ros_node_;
+    gz::sim::Model model_;
+  };
 }
 
-/////////////////////////////////////////////////
-void StickPlugin::Reset()
-{
+// 5. Register the plugin with Gazebo Harmonic (Replaces GZ_REGISTER_MODEL_PLUGIN)
+GZ_ADD_PLUGIN(obstacles::StickPlugin,
+              gz::sim::System,
+              obstacles::StickPlugin::ISystemConfigure,
+              obstacles::StickPlugin::ISystemPostUpdate)
 
-}
+GZ_ADD_PLUGIN_ALIAS(obstacles::StickPlugin, "obstacles::StickPlugin")

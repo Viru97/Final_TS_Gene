@@ -27,9 +27,18 @@ install(
 # --- WE WILL UNCOMMENT THESE LATER ONCE WE MIGRATE THE C++ CODE TO RCLCPP ---
 # ==============================================================================
 
-# add_executable(stick src/stick.cc)
-# ament_target_dependencies(stick rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
-# install(TARGETS stick DESTINATION lib/${PROJECT_NAME})
+# Add Gazebo Harmonic dependency
+find_package(gz-sim8 REQUIRED)
+
+# Compile stick.cc as a SHARED library (Plugin)
+add_library(stick SHARED src/stick.cc)
+
+# Link ROS 2 and Gazebo Harmonic libraries
+ament_target_dependencies(stick rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
+target_link_libraries(stick gz-sim8::gz-sim8)
+
+# Install the plugin so Gazebo can find it
+install(TARGETS stick DESTINATION lib/${PROJECT_NAME})
 
 # add_executable(cv_model src/cv_model.cc)
 # ament_target_dependencies(cv_model rclcpp std_msgs geometry_msgs visualization_msgs tf2 tf2_ros tf2_geometry_msgs custom_robot_msgs)
