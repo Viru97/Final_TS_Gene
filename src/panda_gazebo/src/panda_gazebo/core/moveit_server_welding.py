@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Native ROS2 minimal server placeholder after ROS1 shim removal."""
+"""ROS2-native welding variant of planner services."""
 
-from rclpy.node import Node
+from panda_gazebo.core.moveit_server import PandaMoveItPlannerServer
 
 
-class PandaMoveItPlannerServerWelding(Node):
-    def __init__(self, *args, **kwargs):
-        del args, kwargs
-        super().__init__("panda_moveit_planner_server")
-        self.get_logger().warning(
-            "Legacy MoveIt server logic was shim-based and needs full native MoveIt2 reimplementation."
-        )
+class PandaMoveItPlannerServerWelding(PandaMoveItPlannerServer):
+    def __init__(self):
+        super().__init__()
+        self._ee_name = 'panda_link8'
+        self.get_logger().info('Welding planner profile active')

@@ -1,27 +1,34 @@
 #!/usr/bin/env python3
-"""Native ROS2 placeholder for legacy script 'plot.py'."""
 
 import rclpy
 from rclpy.node import Node
+from sensor_msgs.msg import JointState
 
 
-class LegacyScriptNode(Node):
+class JointStatePlot(Node):
     def __init__(self):
-        super().__init__("plot")
-        self.get_logger().warning(
-            "Script 'plot.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
+        super().__init__('plot')
+        self.subscription = self.create_subscription(
+            JointState, '/joint_states', self._cb, 10
         )
+        self._count = 0
+        self.get_logger().info("Listening on '/joint_states'")
+
+    def _cb(self, msg):
+        self._count += 1
+        if self._count % 20 == 0 and msg.name:
+            self.get_logger().info(f'joint sample: {msg.name[0]}={msg.position[0]:.4f}')
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = LegacyScriptNode()
+    node = JointStatePlot()
     try:
-        rclpy.spin_once(node, timeout_sec=0.1)
+        rclpy.spin(node)
     finally:
         node.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

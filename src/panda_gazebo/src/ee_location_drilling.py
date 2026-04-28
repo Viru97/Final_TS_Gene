@@ -1,27 +1,7 @@
 #!/usr/bin/env python3
-"""Native ROS2 placeholder for legacy script 'ee_location_drilling.py'."""
 
-import rclpy
-from rclpy.node import Node
+from ee_location_backup import main
 
 
-class LegacyScriptNode(Node):
-    def __init__(self):
-        super().__init__("ee_location_drilling")
-        self.get_logger().warning(
-            "Script 'ee_location_drilling.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
-        )
-
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = LegacyScriptNode()
-    try:
-        rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

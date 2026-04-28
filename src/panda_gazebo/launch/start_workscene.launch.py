@@ -1,18 +1,19 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    share = get_package_share_directory("panda_gazebo")
-    legacy_launch = os.path.join(share, "launch", "start_workscene.launch")
-
-    # Bridge ROS 2 CLI callers to the existing frontend launch description.
     return LaunchDescription(
         [
-            IncludeLaunchDescription(AnyLaunchDescriptionSource(legacy_launch)),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution(
+                        [FindPackageShare('panda_gazebo'), 'launch', 'put_robot_in_world.launch.py']
+                    )
+                )
+            ),
         ]
     )

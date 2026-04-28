@@ -1,27 +1,12 @@
 #!/usr/bin/env python3
-"""Native ROS2 placeholder for legacy script 'welding.py'."""
 
-import rclpy
-from rclpy.node import Node
-
-
-class LegacyScriptNode(Node):
-    def __init__(self):
-        super().__init__("welding")
-        self.get_logger().warning(
-            "Script 'welding.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
-        )
+import subprocess
+import sys
 
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = LegacyScriptNode()
-    try:
-        rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+def main():
+    return subprocess.call(['ros2', 'run', 'pick_and_place', 'pick_and_place_welding', *sys.argv[1:]])
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    raise SystemExit(main())

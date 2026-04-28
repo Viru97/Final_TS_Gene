@@ -1,38 +1,47 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    share = get_package_share_directory("panda_gazebo")
-    legacy_launch = os.path.join(share, "launch", "put_robot_in_world.launch")
-
-    rviz = LaunchConfiguration("rviz")
     moveit = LaunchConfiguration("moveit")
-    load_gripper = LaunchConfiguration("load_gripper")
-    gripper = LaunchConfiguration("gripper")
     control_type = LaunchConfiguration("control_type")
 
     return LaunchDescription(
         [
-            DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("moveit", default_value="true"),
             DeclareLaunchArgument("load_gripper", default_value="false"),
             DeclareLaunchArgument("gripper", default_value="drill"),
             DeclareLaunchArgument("control_type", default_value="trajectory"),
-            IncludeLaunchDescription(
-                AnyLaunchDescriptionSource(legacy_launch),
-                launch_arguments={
-                    "rviz": rviz,
-                    "moveit": moveit,
-                    "load_gripper": load_gripper,
-                    "gripper": gripper,
-                    "control_type": control_type,
-                }.items(),
+            Node(
+                package='panda_gazebo',
+                executable='panda_control_server.py',
+                name='panda_control_server',
+                output='screen',
+                parameters=[
+                    {
+                        'load_set_joint_commands_service': True,
+                        'load_arm_follow_joint_trajectory_action': False,
+                        'load_extra_services': True,
+                        'load_gripper': True,
+                    }
+                ],
+            ),
+            Node(
+                condition=IfCondition(moveit),
+                package='panda_gazebo',
+                executable='panda_moveit_server.py',
+                name='panda_moveit_planner_server',
+                output='screen',
+            ),
+            Node(
+                package='panda_gazebo',
+                executable='set_logging_level.py',
+                name='set_logging_level_franka_control',
+                output='screen',
+                arguments=['--name', 'ros.franka_gazebo.FrankaGripperSim', '--level', 'warn'],
             ),
         ]
     )
