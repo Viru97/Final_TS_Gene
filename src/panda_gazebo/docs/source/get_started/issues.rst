@@ -17,7 +17,7 @@ This issue can be mitigated by switching the physics engine from `ODE`_ to `DART
 
 .. code-block:: bash
 
-    roslaunch panda_gazebo simulation.launch physics:=Dart
+    ros2 launch panda_gazebo simulation.launch.py physics:=Dart
 
 Simulation Crashes with DART Physics
 --------------------------------------

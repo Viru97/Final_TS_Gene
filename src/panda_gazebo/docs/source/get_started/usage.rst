@@ -24,16 +24,17 @@ modes that can be selected using the ``control_mode`` argument:
 
 .. Note::
 
-    You can test different control modes using the :mod:`joint_efforts_dynamic_reconfigure_server` and :mod:`joint_positions_dynamic_reconfigure_server` nodes. 
-    These nodes allow you to send joint efforts and joint positions to the robot. To learn more about utilizing these dynamic reconfigure servers, refer to the 
-    documentation of the `dynamic_reconfigure`_ and `rqt_reconfigure`_ ROS packages.
+    You can test different control modes using the
+    :mod:`joint_efforts_dynamic_reconfigure_server` and
+    :mod:`joint_positions_dynamic_reconfigure_server` helper nodes.
+    In the ROS 2 port these are command helper nodes (not ROS 1 dynamic
+    reconfigure servers) that publish effort/position commands and send gripper
+    actions.
 
     Furthermore, you can explore trajectory control using the `MoveIt! package`_ or `rqt_joint_trajectory_controller package`_. To enable `MoveIt!`, set the
     ``use_moveit`` launch file argument to ``true``. Once enabled, you can control the robot through the `RViz Motion Planning`_ panel. For detailed instructions on how to
     use `MoveIt!`_, consult the `MoveIt! tutorials`_.
 
-.. _dynamic_reconfigure: https://wiki.ros.org/dynamic_reconfigure
-.. _rqt_reconfigure: https://wiki.ros.org/rqt_reconfigure
 .. _`MoveIt! package`: https://moveit.ros.org/
 .. _`rqt_joint_trajectory_controller package`: https://wiki.ros.org/rqt_joint_trajectory_controller
 .. _`RViz Motion Planning`: https://ros-planning.github.io/moveit_tutorials/doc/quickstart_in_rviz/quickstart_in_rviz_tutorial.html
@@ -47,12 +48,9 @@ The ``start_simulation.launch`` launch file combines the two other launch files 
 Usage instructions
 ------------------
 
-You can launch any launch files using the ``roslaunch`` command-line tool. For example, if you want to start a gazebo simulation
-of the Panda robot, you can use the following ``roslaunch`` command:
+You can launch any launch files using the ``ros2 launch`` command-line tool.
+For example, to start a Gazebo simulation of the Panda robot:
 
 .. code-block:: bash
 
-    roslaunch panda_gazebo start_simulation.launch
-
-
-The note you've provided is clear and informative, but you can improve it further by organizing the information more effectively and making it easier to read. Here's a revised version:
+    ros2 launch panda_gazebo start_simulation.launch.py
