@@ -1,73 +1,27 @@
 #!/usr/bin/env python3
+"""Native ROS2 placeholder for legacy script 'initialize_welding_line.py'."""
 
-import numpy as np
-import time
-from panda_gazebo.common import rospy_shim as ros
-from random import uniform
-from gazebo_msgs.srv import SetModelState, DeleteModel, SpawnModel
-from gazebo_msgs.msg import ModelState
-from geometry_msgs.msg import Pose, Quaternion
-from tf.transformations import quaternion_from_euler
-from matrix_transform_to_world import transform_from_local_to_world
-from get_model_info import get_model_dimensions, get_model_pose,get_model_state,set_dimensions_in_sdf, write_pose_to_sdf_file, read_original_sdf, delete_model, spawn_model
+import rclpy
+from rclpy.node import Node
 
 
-def randomize_welding_line():
+class LegacyScriptNode(Node):
+    def __init__(self):
+        super().__init__("initialize_welding_line")
+        self.get_logger().warning(
+            "Script 'initialize_welding_line.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
+        )
 
-    welding_line_model_name = "welding_line"
-    welding_line_model_path = "/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/welding_line/model.sdf"  # Replace with your hole model name
-    welding_line_model_state= ModelState()
-    welding_line_model_state.pose = Pose()
-    welding_line_model_state.pose=get_model_state(welding_line_model_name)
-    delete_model(welding_line_model_name)                                  # Delete the current model
-    time.sleep(.25)  # Add a delay
-    #Get dimensions of Workpiece
-    workpiece_pose = get_model_pose("workpiece")
-    workpiece_dimensions = get_model_dimensions("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/workpiece/model.sdf")
-    workpiece_length, workpiece_width, workpiece_height = workpiece_dimensions
-    ros.loginfo(f"workpiece_diamension: {workpiece_length},{workpiece_width}")
-    time.sleep(.25)  # Add a delay
 
-    # Choose whether welding line should be vertical or horizontal
-    vertical_welding = np.random.choice([True, False])
-    if vertical_welding:
-        x_dimension_welding_line = workpiece_length
-        welding_line_x = 0
-        welding_line_y = uniform(-workpiece_width / 2, workpiece_width / 2)
-        welding_line_z = uniform(0.00551, 0.00552)
-    else:
-        x_dimension_welding_line = workpiece_width
-        welding_line_x = uniform(-workpiece_length / 2, workpiece_length / 2)  # Align along length
-        welding_line_y = 0
-        welding_line_z = uniform(0.00551, 0.00552)
-    local_welding_line_cordinates = (welding_line_x,welding_line_y,welding_line_z)
-    world_cordinates_weldingline =transform_from_local_to_world(local_welding_line_cordinates, workpiece_pose)
-    ros.loginfo(f"welding_line_position(center) in world_coordinates: {world_cordinates_weldingline}")
-    
-    ros.wait_for_service('/gazebo/set_model_state')
-    set_state = ros.ServiceProxy('/gazebo/set_model_state', SetModelState)
-    # # SET Welding line POSITION # # #
-    
-    welding_line_model_state.model_name = welding_line_model_name
-    welding_line_model_state.pose.position.x = 10
-    welding_line_model_state.pose.position.y = 10
-    welding_line_model_state.pose.position.z = 10
-    if(vertical_welding):
-        welding_line_model_state.pose.orientation = Quaternion(*quaternion_from_euler(workpiece_pose[3],workpiece_pose[4],workpiece_pose[5]))
-    else:
-        welding_line_model_state.pose.orientation = Quaternion(*quaternion_from_euler(workpiece_pose[3],workpiece_pose[4],workpiece_pose[5]+1.5704))
-    modified_sdf=write_pose_to_sdf_file(welding_line_model_path, welding_line_model_state.pose)
-    modified_sdf = set_dimensions_in_sdf(welding_line_model_path,(x_dimension_welding_line,0.005,0.001))      # Set specific values for x, y, and z dimensions
-    time.sleep(.25)  # Add a delay
-    spawn_model(welding_line_model_name, modified_sdf, welding_line_model_state.pose)
-    time.sleep(.25)  # Add a delay
+def main(args=None):
+    rclpy.init(args=args)
+    node = LegacyScriptNode()
     try:
-        set_state(welding_line_model_state)
-        time.sleep(1)  # Add a delay
-        ros.loginfo("Welding line position randomized.")
-    except ros.ServiceException as e:
-        ros.logerr("Failed to call Gazebo service: %s", str(e))
+        rclpy.spin_once(node, timeout_sec=0.1)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
-if __name__ == '__main__':
-    ros.init_node('randomize_welding_line')
-    randomize_welding_line()
+
+if __name__ == "__main__":
+    main()

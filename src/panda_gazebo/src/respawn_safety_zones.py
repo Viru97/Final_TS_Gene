@@ -1,57 +1,27 @@
 #!/usr/bin/env python3
+"""Native ROS2 placeholder for legacy script 'respawn_safety_zones.py'."""
 
-import time
-from panda_gazebo.common import rospy_shim as ros
-from gazebo_msgs.srv import DeleteModel, SpawnModel
-from geometry_msgs.msg import Pose
-from get_model_info import get_model_dimensions, get_model_state, set_dimensions_in_sdf, write_pose_to_sdf_file
+import rclpy
+from rclpy.node import Node
 
 
-def delete_existing_model(model_name):
-    model_state = get_model_state(model_name)
-    if model_state is not None:
-        
-        ros.wait_for_service('/gazebo/delete_model')
-        delete_model_proxy = ros.ServiceProxy('/gazebo/delete_model', DeleteModel)
-        try:
-            delete_model_proxy(model_name)
-            ros.loginfo(f"Model '{model_name}' deleted successfully.")
-        except ros.ServiceException as e:
-            ros.logerr(f"Failed to delete model '{model_name}': {str(e)}")
-    else:
-        ros.loginfo(f"Model '{model_name}' does not exist")
+class LegacyScriptNode(Node):
+    def __init__(self):
+        super().__init__("respawn_safety_zones")
+        self.get_logger().warning(
+            "Script 'respawn_safety_zones.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
+        )
 
-def spawn_model(model_name, model_xml, pose, reference_frame="world"):
-    ros.wait_for_service('/gazebo/spawn_sdf_model')
-    spawn_model_proxy = ros.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = LegacyScriptNode()
     try:
-        spawn_model_proxy(model_name, model_xml, " ", pose, reference_frame)
-        ros.loginfo(f"Model '{model_name}' spawned successfully.")
-    except ros.ServiceException as e:
-        ros.logerr(f"Failed to spawn model '{model_name}': {str(e)}")
+        rclpy.spin_once(node, timeout_sec=0.1)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
-if __name__ == '__main__':
-    ros.init_node('respawn_safety_zones')
-    workpiece_dimension = get_model_dimensions("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/workpiece/model.sdf")
-  
-    delete_existing_model("safety_green")                                                    # Delete the existing model
-    modified_sdf_content=write_pose_to_sdf_file("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/safety_green/model.sdf",get_model_state("workpiece"))
-    time.sleep(1)  # Add a delay
-    modified_sdf_content_2=set_dimensions_in_sdf("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/safety_green/model.sdf",modified_sdf_content, workpiece_dimension)
-    spawn_model("safety_green",modified_sdf_content_2, get_model_state("workpiece"))         # Spawn the modified model with the updated dimensions at the current pose
-    time.sleep(1)  # Add a delay
 
-    delete_existing_model("danger_red_1")                                                    # Delete the existing model
-    modified_sdf_content=write_pose_to_sdf_file("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/danger_red_1/model.sdf",get_model_state("hole_1"))
-    spawn_model("danger_red_1",modified_sdf_content, get_model_state("hole_1"))              # Spawn the modified model with the updated dimensions at the current pose
-    time.sleep(1)  # Add a delay
-
-    delete_existing_model("danger_red_2")                                                    # Delete the existing model
-    modified_sdf_content=write_pose_to_sdf_file("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/danger_red_2/model.sdf",get_model_state("hole_2"))
-    spawn_model("danger_red_2",modified_sdf_content, get_model_state("hole_2"))              # Spawn the modified model with the updated dimensions at the current pose
-    time.sleep(1)  # Add a delay
-
-    delete_existing_model("danger_red_3")                                                    # Delete the existing model
-    modified_sdf_content=write_pose_to_sdf_file("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/danger_red_3/model.sdf",get_model_state("hole_3"))
-    spawn_model("danger_red_3",modified_sdf_content, get_model_state("hole_3"))              # Spawn the modified model with the updated dimensions at the current pose
-    time.sleep(1)  # Add a delay
+if __name__ == "__main__":
+    main()

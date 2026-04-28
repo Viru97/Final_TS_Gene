@@ -1,58 +1,27 @@
 #!/usr/bin/env python3
-import sys
-import time
-from panda_gazebo.common import rospy_shim as ros
-import numpy as np
-from gazebo_msgs.msg import ModelState
-from gazebo_msgs.srv import SpawnModel, DeleteModel
-from get_model_info import get_model_state,set_dimensions_in_sdf
+"""Native ROS2 placeholder for legacy script 'configure_geometry.py'."""
 
-def spawn_model(model_name, model_xml,Pose,reference_frame="world"):
-    ros.wait_for_service('/gazebo/spawn_sdf_model')
-    spawn_model_proxy = ros.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+import rclpy
+from rclpy.node import Node
+
+
+class LegacyScriptNode(Node):
+    def __init__(self):
+        super().__init__("configure_geometry")
+        self.get_logger().warning(
+            "Script 'configure_geometry.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
+        )
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = LegacyScriptNode()
     try:
-        spawn_model_proxy(model_name, model_xml, "", Pose, reference_frame)
-        ros.loginfo(f"Model '{model_name}' spawned successfully.")
-    except ros.ServiceException as e:
-        ros.logerr(f"Failed to spawn model '{model_name}': {str(e)}")
-
-def delete_model(model_name):
-    ros.wait_for_service('/gazebo/delete_model')
-    delete_model_proxy = ros.ServiceProxy('/gazebo/delete_model', DeleteModel)
-    try:
-        delete_model_proxy(model_name)
-        ros.loginfo(f"Model '{model_name}' deleted successfully.")
-    except ros.ServiceException as e:
-        ros.logerr(f"Failed to delete model '{model_name}': {str(e)}")
+        rclpy.spin_once(node, timeout_sec=0.1)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
-if __name__ == '__main__':
-    ros.init_node('set_dimensions_in_model')
-
-    model_name = "workpiece"
-    model_path = "/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/workpiece/model.sdf" 
-    model_state= ModelState()
-    model_state.pose=get_model_state(model_name)
-
-    if len(sys.argv) != 3:
-        print("Usage: rosrun your_package_name configure_workpiece.py <length> <width>")
-        sys.exit(1)
-
-    try:
-        x_dimension = float(sys.argv[1])
-        y_dimension = float(sys.argv[2])
-        z_dimension = 0.01                       # z diamension is fixed as 1cm
-        ros.loginfo(f"New Dimension {x_dimension}'x'{y_dimension}")
-    except ValueError:
-        print("Error: Length and width must be numeric values")
-        sys.exit(1)
-    model_dimension=(x_dimension, y_dimension, z_dimension)
-    ros.loginfo(f"New Dimension of '{model_name}': {x_dimension}'x'{y_dimension}")
-   
-    modified_sdf = set_dimensions_in_sdf(model_path,model_dimension)      # Set specific values for x, y, and z dimensions
-    time.sleep(.1)  # Add a delay
-   
-    delete_model(model_name)                                  # Delete the current model
-    time.sleep(.1)  # Add a delay
-    spawn_model(model_name, modified_sdf, model_state.pose)
-    time.sleep(1)  # Add a delay
+if __name__ == "__main__":
+    main()
