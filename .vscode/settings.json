@@ -1,14 +1,12 @@
 {
     "python.autoComplete.extraPaths": [
-        "/home/baua/Final_TS_Gene/devel/lib/python3/dist-packages",
-        "/home/baua/Final_TS_Gene/devel/lib/python3/dist-packages",
-        "/opt/ros/noetic/lib/python3/dist-packages",
-        "/home/baua/catkin_ws/devel/lib/python3/dist-packages"
+        "/workspace/install/gui/lib/python3.12/site-packages",
+        "/workspace/install/custom_robot_msgs/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
     ],
     "python.analysis.extraPaths": [
-        "/home/baua/Final_TS_Gene/devel/lib/python3/dist-packages",
-        "/home/baua/Final_TS_Gene/devel/lib/python3/dist-packages",
-        "/opt/ros/noetic/lib/python3/dist-packages",
-        "/home/baua/catkin_ws/devel/lib/python3/dist-packages"
+        "/workspace/install/gui/lib/python3.12/site-packages",
+        "/workspace/install/custom_robot_msgs/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
     ]
 }
