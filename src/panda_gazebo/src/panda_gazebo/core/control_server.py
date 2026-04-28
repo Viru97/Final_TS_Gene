@@ -29,16 +29,18 @@ import time
 from collections import defaultdict
 from itertools import compress
 
-import control_msgs.msg as control_msgs
+import control_msgs.action as control_msgs_action
 import numpy as np
-import rospy
-from actionlib import SimpleActionClient, SimpleActionServer
-from actionlib_msgs.msg import GoalStatus
-from control_msgs.msg import GripperCommandAction, GripperCommandGoal
-from controller_manager_msgs.srv import ListControllers, ListControllersRequest
-from rospy.exceptions import ROSException, ROSInterruptException
+import rclpy
+from action_msgs.msg import GoalStatus
+from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
+from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
+
+from controller_manager_msgs.srv import ListControllers, ListControllersRequest
 
 from panda_gazebo.common import ControlledJointsDict
 from panda_gazebo.common.helpers import (
@@ -53,7 +55,7 @@ from panda_gazebo.common.helpers import (
     translate_actionclient_result_error_code,
 )
 from panda_gazebo.exceptions import InputMessageInvalidError
-from panda_gazebo.msg import FollowJointTrajectoryAction, FollowJointTrajectoryResult
+from panda_gazebo.action import FollowJointTrajectory
 from panda_gazebo.srv import (
     GetControlledJoints,
     GetControlledJointsResponse,
@@ -96,7 +98,7 @@ CONTROLLER_INFO_RATE = 1 / 10  # Rate [hz] for retrieving controller information
 CONNECTION_TIMEOUT = 10  # Service connection timeout [s].
 
 
-class PandaControlServer(object):
+class PandaControlServer(Node):
     """Controller server used to send control commands to the simulated Panda Robot.
 
     Attributes:
@@ -111,12 +113,13 @@ class PandaControlServer(object):
 
     def __init__(  # noqa: C901
         self,
-        autofill_traj_positions=False,
-        load_gripper=True,
-        load_set_joint_commands_service=True,
-        load_arm_follow_joint_trajectory_action=False,
-        load_extra_services=False,
-        controllers_check_rate=CONTROLLER_INFO_RATE,
+        node_name="panda_control_server",
+        autofill_traj_positions=None,
+        load_gripper=None,
+        load_set_joint_commands_service=None,
+        load_arm_follow_joint_trajectory_action=None,
+        load_extra_services=None,
+        controllers_check_rate=None,
     ):
         """Initialise PandaControlServer object.
 
@@ -145,6 +148,52 @@ class PandaControlServer(object):
             Please note that increasing the ``controllers_check_rate`` decreases the
             control frequency.
         """
+        super().__init__(
+            node_name,
+            allow_undeclared_parameters=True,
+            automatically_declare_parameters_from_overrides=True,
+        )
+        self._logger = self.get_logger()
+        self._callback_group = ReentrantCallbackGroup()
+        self._warned_once = set()
+        self.declare_parameter("autofill_traj_positions", False)
+        self.declare_parameter("load_gripper", True)
+        self.declare_parameter("load_set_joint_commands_service", True)
+        self.declare_parameter("load_arm_follow_joint_trajectory_action", False)
+        self.declare_parameter("load_extra_services", False)
+        self.declare_parameter("controllers_check_rate", CONTROLLER_INFO_RATE)
+
+        autofill_traj_positions = (
+            self.get_parameter("autofill_traj_positions").value
+            if autofill_traj_positions is None
+            else autofill_traj_positions
+        )
+        load_gripper = (
+            self.get_parameter("load_gripper").value
+            if load_gripper is None
+            else load_gripper
+        )
+        load_set_joint_commands_service = (
+            self.get_parameter("load_set_joint_commands_service").value
+            if load_set_joint_commands_service is None
+            else load_set_joint_commands_service
+        )
+        load_arm_follow_joint_trajectory_action = (
+            self.get_parameter("load_arm_follow_joint_trajectory_action").value
+            if load_arm_follow_joint_trajectory_action is None
+            else load_arm_follow_joint_trajectory_action
+        )
+        load_extra_services = (
+            self.get_parameter("load_extra_services").value
+            if load_extra_services is None
+            else load_extra_services
+        )
+        controllers_check_rate = (
+            self.get_parameter("controllers_check_rate").value
+            if controllers_check_rate is None
+            else controllers_check_rate
+        )
+
         self.arm_joint_positions_threshold = 0.07
         self.arm_joint_efforts_threshold = 7
         self.arm_velocity_threshold = 0.07
@@ -158,9 +207,11 @@ class PandaControlServer(object):
         self.__controlled_joints = {}
         self.__joint_controllers = {}
 
-        # Disable the `gripper_action` gripper width reached check.
-        # NOTE: Done to allow grasping with the `gripper_action` service (see #33).
-        rospy.set_param("/franka_gripper/gripper_action/width_tolerance", 0.1)
+        # NOTE: ROS 2 parameters are per-node. If needed, set this on the
+        # franka_gripper node via a parameter client.
+        self._logger.debug(
+            "Skipping global set of /franka_gripper/gripper_action/width_tolerance"
+        )
 
         ########################################
         # Create Panda control services ########

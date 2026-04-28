@@ -3,20 +3,59 @@
 """
 import copy
 import sys
+import time
 
-import control_msgs.msg as control_msgs
+import control_msgs.action as control_msgs_action
 import numpy as np
-import rospy
-from actionlib_msgs.msg import GoalStatusArray
+import rclpy
+from action_msgs.msg import GoalStatusArray
 from controller_manager_msgs.srv import ListControllersResponse
 from geometry_msgs.msg import Quaternion
 from moveit_msgs.msg import MoveItErrorCodes
 from numpy import linalg, nan
-from rospy.exceptions import ROSException
+from rclpy.duration import Duration
+from rclpy.task import Future
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
-from panda_gazebo.msg import FollowJointTrajectoryGoal
+from panda_gazebo.action import FollowJointTrajectory
+
+
+LOGGER = rclpy.logging.get_logger("panda_gazebo")
+
+
+def _get_logger(node=None):
+    return node.get_logger() if node is not None else LOGGER
+
+
+def wait_for_message(node, topic, msg_type, timeout_sec=1.0):
+    """Wait for a single message on a topic using rclpy.
+
+    Args:
+        node (rclpy.node.Node): Node used to spin and create the subscription.
+        topic (str): Topic name.
+        msg_type: ROS 2 message type.
+        timeout_sec (float): Timeout in seconds.
+
+    Returns:
+        msg_type: The received message.
+
+    Raises:
+        TimeoutError: When the timeout is exceeded.
+    """
+    future = Future()
+
+    def _callback(msg):
+        if not future.done():
+            future.set_result(msg)
+
+    subscription = node.create_subscription(msg_type, topic, _callback, 1)
+    rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
+    node.destroy_subscription(subscription)
+
+    if future.done():
+        return future.result()
+    raise TimeoutError(f"Timeout while waiting for message on '{topic}'.")
 
 
 #################################################
@@ -72,7 +111,7 @@ def action_dict_2_joint_trajectory_msg(
     Raises:
         ValuesError: When the action_dict is invalid.
     """
-    goal_msg = FollowJointTrajectoryGoal()
+    goal_msg = FollowJointTrajectory.Goal()
     goal_msg.create_time_axis = create_time_axis
     goal_msg.time_axis_step = time_axis_step
 
@@ -127,13 +166,13 @@ def panda_action_msg_2_control_msgs_action_msg(panda_action_msg):
         TypeError: If panda_action_msg is not of type
             :class:`panda_gazebo.msg.FollowJointTrajectoryGoal`.
     """
-    if not isinstance(panda_action_msg, FollowJointTrajectoryGoal):
+    if not isinstance(panda_action_msg, FollowJointTrajectory.Goal):
         raise TypeError(
             "panda_action_msg must be of type "
-            "panda_gazebo.msg.FollowJointTrajectoryGoal"
+            "panda_gazebo.action.FollowJointTrajectory.Goal"
         )
 
-    control_msgs_action_msg = control_msgs.FollowJointTrajectoryGoal()
+    control_msgs_action_msg = control_msgs_action.FollowJointTrajectory.Goal()
     control_msgs_action_msg.trajectory = panda_action_msg.trajectory
     control_msgs_action_msg.goal_time_tolerance = panda_action_msg.goal_time_tolerance
     control_msgs_action_msg.goal_tolerance = panda_action_msg.goal_tolerance
@@ -174,10 +213,8 @@ def translate_actionclient_result_error_code(actionclient_retval):
     function into a human readable error message.
 
     Args:
-        actionclient_retval (:obj:`control_msgs.msg.FollowJointTrajectoryResult`): The
-            result that is returned by the
-            :func:`actionlib.simple_action_client.SimpleActionClient.get_result()`
-            function.
+        actionclient_retval (:obj:`control_msgs.action.FollowJointTrajectory.Result`):
+            Result returned by a ROS 2 action client.
 
     Returns:
         str: Error string that corresponds to the error code.
@@ -188,11 +225,11 @@ def translate_actionclient_result_error_code(actionclient_retval):
     """
     if actionclient_retval is not None:
         if not isinstance(
-            actionclient_retval, control_msgs.FollowJointTrajectoryResult
+            actionclient_retval, control_msgs_action.FollowJointTrajectory.Result
         ):
             raise TypeError(
                 "actionclient_retval must be of type "
-                "control_msgs.msg.FollowJointTrajectoryResult"
+                "control_msgs.action.FollowJointTrajectory.Result"
             )
 
         error_dict = {
@@ -433,42 +470,36 @@ def flatten_list(input_list):
 #################################################
 # Other functions ###############################
 #################################################
-def action_server_exists(topic_name):
-    """Checks whether a topic contains an action server
-    is running.
+def action_server_exists(node, action_name, timeout_sec=5.0):
+    """Checks whether an action server is available on the ROS 2 graph.
 
     Args:
-        topic_name (str): Action server topic name.
+        node (rclpy.node.Node): Node used to query the ROS graph.
+        action_name (str): Action server base name (no suffixes).
+        timeout_sec (float): How long to wait for discovery.
 
     Returns:
-        bool: Boolean specifying whether the action service exists.
+        bool: True when the action server status topic is detected.
+
     Raises:
-        TypeError: If topic_name is not of type str.
+        TypeError: If action_name is not of type str.
     """
-    if not isinstance(topic_name, str):
-        raise TypeError("topic_name must be of type str")
+    if not isinstance(action_name, str):
+        raise TypeError("action_name must be of type str")
 
-    # Strip action server specific topics from topic name.
-    if topic_name.split("/")[-1] in ["cancel", "feedback", "goal", "result", "status"]:
-        topic_name = "/".join(topic_name.split("/")[:-1])
-    if topic_name[-1] == "/":
-        topic_name = topic_name[:-1]
+    # Strip action server specific topics from action name.
+    if action_name.split("/")[-1] in ["cancel", "feedback", "goal", "result", "status"]:
+        action_name = "/".join(action_name.split("/")[:-1])
+    action_name = action_name.rstrip("/")
+    status_topic = f"{action_name}/_action/status"
 
-    # Validate if action server topic exists.
-    try:
-        rospy.wait_for_message("%s/status" % topic_name, GoalStatusArray, timeout=5)
-    except ROSException:
-        return False
-
-    # Check if topic contains action client.
-    exists = False
-    for item in rospy.get_published_topics():
-        if "%s/status" % topic_name in item[0]:
-            if "actionlib_msgs" in item[1]:
-                exists = True
-            else:
-                exists = False
-    return exists
+    deadline = node.get_clock().now() + Duration(seconds=timeout_sec)
+    while rclpy.ok() and node.get_clock().now() < deadline:
+        for topic_name, topic_types in node.get_topic_names_and_types():
+            if topic_name == status_topic and "action_msgs/msg/GoalStatusArray" in topic_types:
+                return True
+        rclpy.spin_once(node, timeout_sec=0.1)
+    return False
 
 
 def quaternion_norm(quaternion):
@@ -488,7 +519,7 @@ def quaternion_norm(quaternion):
     return linalg.norm([quaternion.x, quaternion.y, quaternion.z, quaternion.w])
 
 
-def normalize_quaternion(quaternion):
+def normalize_quaternion(quaternion, node=None):
     """Normalizes a given quaternion.
 
     Args:
@@ -511,7 +542,7 @@ def normalize_quaternion(quaternion):
     # Normalize quaternion.
     if norm == nan:
         # test.
-        rospy.logwarn(
+        _get_logger(node).warn(
             "Quaternion could not be normalized since the norm could not be "
             "calculated."
         )
@@ -547,7 +578,7 @@ def vector_norm(vector):
     return np.linalg.norm(vector)
 
 
-def normalize_vector(vector, force=True):
+def normalize_vector(vector, force=True, node=None):
     """Normalizes a given vector.
 
     Args:
@@ -569,46 +600,58 @@ def normalize_vector(vector, force=True):
     if norm == 0:
         if force:
             return [0.0, 0.0, 1.0]
-        rospy.logwarn("Vector could not be normalized since the norm is zero.")
+        _get_logger(node).warn("Vector could not be normalized since the norm is zero.")
         return list(vector)
     return list(vector / norm)
 
 
-def ros_exit_gracefully(shutdown_msg=None, exit_code=0):
-    """Shuts down the ROS node wait until it is shutdown and exits the script.
+def ros_exit_gracefully(shutdown_msg=None, exit_code=0, node=None):
+    """Shuts down rclpy and exits the script.
 
     Args:
         shutdown_msg (str, optional): The shutdown message. Defaults to ``None``.
         exit_code (int, optional): The exit code. Defaults to ``0``.
+        node (rclpy.node.Node, optional): Node used for logging.
     """
-    try:
+    logger = _get_logger(node)
+    if shutdown_msg:
         if exit_code == 0:
-            rospy.loginfo(shutdown_msg)
+            logger.info(shutdown_msg)
         else:
-            rospy.logerr(shutdown_msg)
-        rospy.signal_shutdown(shutdown_msg)
-        while not rospy.is_shutdown():
-            rospy.sleep(0.1)
-    finally:
-        sys.exit(exit_code)
+            logger.error(shutdown_msg)
+    rclpy.shutdown()
+    sys.exit(exit_code)
 
 
-def load_panda_joint_limits():
-    """Loads the joint limits of the Panda robot from the parameter server.
+def load_panda_joint_limits(node, param_prefix="panda_gazebo.panda"):
+    """Loads Panda joint limits from ROS 2 parameters.
+
+    Args:
+        node (rclpy.node.Node): Node to read parameters from.
+        param_prefix (str): Prefix for joint limit parameters.
 
     Returns:
-        dict: Dictionary containing the joint position limits (i.e. min and max) for
-            each joint. Returns an empty dictionary if the joint limits could not be
-            loaded.
+        dict: Dictionary containing joint position limits (min/max) for each joint.
     """
-    # Load arm joint limits from parameter server.
+    prefix = param_prefix.replace("/", ".")
     joint_limits = {}
+
     for i in range(1, 8):
         joint_name = f"joint{i}"
-        if rospy.has_param(f"panda_gazebo/panda/{joint_name}"):
-            limits = rospy.get_param(f"panda_gazebo/panda/{joint_name}")
-            joint_limits[f"panda_{joint_name}_min"] = limits["limit"]["lower"]
-            joint_limits[f"panda_{joint_name}_max"] = limits["limit"]["upper"]
+        lower_name = f"{prefix}.{joint_name}.limit.lower"
+        upper_name = f"{prefix}.{joint_name}.limit.upper"
+
+        try:
+            node.declare_parameter(lower_name, None)
+            node.declare_parameter(upper_name, None)
+        except Exception:
+            pass
+
+        lower_val = node.get_parameter(lower_name).value
+        upper_val = node.get_parameter(upper_name).value
+        if lower_val is not None and upper_val is not None:
+            joint_limits[f"panda_{joint_name}_min"] = lower_val
+            joint_limits[f"panda_{joint_name}_max"] = upper_val
 
     # Add finger joint limits.
     joint_limits.update(

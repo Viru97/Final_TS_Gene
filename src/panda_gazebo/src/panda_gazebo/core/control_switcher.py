@@ -11,7 +11,7 @@ Control types:
 import time
 from itertools import compress
 
-import rospy
+import rclpy
 from controller_manager_msgs.srv import (
     ListControllers,
     ListControllersRequest,
@@ -20,8 +20,6 @@ from controller_manager_msgs.srv import (
     SwitchController,
     SwitchControllerRequest,
 )
-from rospy.exceptions import ROSException, ROSInterruptException
-
 from panda_gazebo.common import ControllerInfoDict
 from panda_gazebo.common.helpers import (
     dict_clean,
@@ -75,7 +73,13 @@ class PandaControlSwitcher(object):
         hand_control_types (list): List of currently active hand control types.
     """
 
-    def __init__(self, connection_timeout=10, verbose=True, robot_name_space=""):
+    def __init__(
+        self,
+        node,
+        connection_timeout=10,
+        verbose=True,
+        robot_name_space="",
+    ):
         """Initialise PandaControlSwitcher object.
 
         Args:
@@ -86,6 +90,7 @@ class PandaControlSwitcher(object):
             robot_name_space (string, optional): The namespace the robot, and thus the
                 'controller_manager' is on. Defaults to ``""``.
         """
+        self._node = node
         self.verbose = verbose
         self._controller_spawner_wait_timeout = 5
 
@@ -94,49 +99,69 @@ class PandaControlSwitcher(object):
             switch_controller_srv_topic = "%s/controller_manager/switch_controller" % (
                 robot_name_space
             )
-            rospy.logdebug(
+            self._node.get_logger().debug(
                 "Connecting to '%s' service." % (switch_controller_srv_topic)
             )
-            rospy.wait_for_service(
-                switch_controller_srv_topic, timeout=connection_timeout
+            self._switch_controller_client = self._node.create_client(
+                SwitchController, switch_controller_srv_topic
             )
-            self._switch_controller_client = rospy.ServiceProxy(
-                switch_controller_srv_topic, SwitchController
+            if not self._switch_controller_client.wait_for_service(
+                timeout_sec=connection_timeout
+            ):
+                raise TimeoutError(switch_controller_srv_topic)
+            self._node.get_logger().debug(
+                "Connected to '%s' service!" % switch_controller_srv_topic
             )
-            rospy.logdebug("Connected to '%s' service!" % switch_controller_srv_topic)
             list_controllers_srv_topic = "%s/controller_manager/list_controllers" % (
                 robot_name_space
             )
-            rospy.logdebug("Connecting to '%s' service." % list_controllers_srv_topic)
-            rospy.wait_for_service(
-                list_controllers_srv_topic, timeout=connection_timeout
+            self._node.get_logger().debug(
+                "Connecting to '%s' service." % list_controllers_srv_topic
             )
-            self._list_controller_client = rospy.ServiceProxy(
-                list_controllers_srv_topic, ListControllers
+            self._list_controller_client = self._node.create_client(
+                ListControllers, list_controllers_srv_topic
             )
-            rospy.logdebug("Connected to '%s' service!" % list_controllers_srv_topic)
+            if not self._list_controller_client.wait_for_service(
+                timeout_sec=connection_timeout
+            ):
+                raise TimeoutError(list_controllers_srv_topic)
+            self._node.get_logger().debug(
+                "Connected to '%s' service!" % list_controllers_srv_topic
+            )
             load_controller_srv_topic = "%s/controller_manager/load_controller" % (
                 robot_name_space
             )
-            rospy.logdebug("Connecting to '%s' service." % load_controller_srv_topic)
-            rospy.wait_for_service(
-                load_controller_srv_topic, timeout=connection_timeout
+            self._node.get_logger().debug(
+                "Connecting to '%s' service." % load_controller_srv_topic
             )
-            self._load_controller_client = rospy.ServiceProxy(
-                load_controller_srv_topic, LoadController
+            self._load_controller_client = self._node.create_client(
+                LoadController, load_controller_srv_topic
             )
-            rospy.logdebug("Connected to '%s' service!" % load_controller_srv_topic)
-        except (rospy.ServiceException, ROSException, ROSInterruptException) as e:
+            if not self._load_controller_client.wait_for_service(
+                timeout_sec=connection_timeout
+            ):
+                raise TimeoutError(load_controller_srv_topic)
+            self._node.get_logger().debug(
+                "Connected to '%s' service!" % load_controller_srv_topic
+            )
+        except TimeoutError as e:
             err_msg = (
                 "Shutting down '%s' because no connection could be established "
                 "with the '%s' service and this service is needed "
                 "when using 'position'."
                 % (
-                    rospy.get_name(),
-                    "/" + e.args[0].split(" /")[1],
+                    self._node.get_name(),
+                    str(e),
                 )
             )
-            ros_exit_gracefully(shutdown_message=err_msg, exit_code=1)
+            ros_exit_gracefully(shutdown_msg=err_msg, exit_code=1, node=self._node)
+
+    def _call_service(self, client, request, timeout_sec=5.0):
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(self._node, future, timeout_sec=timeout_sec)
+        if future.done():
+            return future.result()
+        raise TimeoutError(client.srv_name)
 
     def _list_controllers_state(self):  # noqa: C901
         """Get information about the currently running and loaded controllers.
@@ -146,8 +171,8 @@ class PandaControlSwitcher(object):
                 currently running or loaded divided by control group arm/hand and
                 other).
         """
-        list_controllers_resp = self._list_controller_client.call(
-            ListControllersRequest()
+        list_controllers_resp = self._call_service(
+            self._list_controller_client, ListControllersRequest()
         )
 
         # Check which Panda controllers are running.
@@ -203,7 +228,9 @@ class PandaControlSwitcher(object):
         # Create load_controller request.
         if isinstance(controllers, str):
             # Send load controller request.
-            resp = self._load_controller_client(LoadControllerRequest(name=controllers))
+            resp = self._call_service(
+                self._load_controller_client, LoadControllerRequest(name=controllers)
+            )
             return [resp.ok]
         elif isinstance(controllers, list):
             # Loop through controllers and request to load them.
@@ -211,13 +238,14 @@ class PandaControlSwitcher(object):
             for controller in controllers:
                 # Send load controller request.
                 resp.append(
-                    self._load_controller_client(
-                        LoadControllerRequest(name=controller)
+                    self._call_service(
+                        self._load_controller_client,
+                        LoadControllerRequest(name=controller),
                     ).ok
                 )
             return resp
         else:
-            rospy.logwarn(
+            self._node.get_logger().warn(
                 "Controllers could not be loaded as the data type of the 'controllers' "
                 f"variable was {type(controllers)} while the 'PandaControlSwitcher' "
                 "only takes an argument of type 'str' or 'list'."
@@ -311,7 +339,7 @@ class PandaControlSwitcher(object):
         control_group = control_group.lower()
         if isinstance(control_group, list):
             if len(control_group) > 1:
-                rospy.logwarn(
+                self._node.get_logger().warn(
                     "Please specify a single control group you want to switch the "
                     "control type for."
                 )
@@ -320,7 +348,7 @@ class PandaControlSwitcher(object):
             else:
                 control_group = control_group[0]
         if control_group not in CONTROLLER_DICT:
-            rospy.logwarn(
+            self._node.get_logger().warn(
                 f"The '{control_group}' control group you specified is not valid. "
                 "Valid control groups for the Panda robot are "
                 f"{list(CONTROLLER_DICT.keys())}."
@@ -328,7 +356,7 @@ class PandaControlSwitcher(object):
             resp.success = False
             return resp
         if control_type not in CONTROLLER_DICT[control_group]:
-            rospy.logwarn(
+            self._node.get_logger().warn(
                 f"The '{control_type} control type you specified is not valid. Valid "
                 "control types for the Panda robot are "
                 f"{list(CONTROLLER_DICT[control_group].keys())}."
@@ -369,7 +397,7 @@ class PandaControlSwitcher(object):
             control_type in running_control_types
         ):  # If control type controllers are already running.
             if verbose:
-                rospy.logdebug(
+                self._node.get_logger().debug(
                     f"Panda {control_group} control type not switched to "
                     f"'{control_type}' as the Panda robot was already using "
                     f"'{prev_control_type}'."
@@ -394,7 +422,7 @@ class PandaControlSwitcher(object):
                     )
                 )
             else:
-                rospy.logwarn(
+                self._node.get_logger().warn(
                     f"The Panda {control_group} control group was not switched to "
                     f"'{control_type}' because the "
                     f"{controllers} controllers could "
@@ -416,7 +444,7 @@ class PandaControlSwitcher(object):
                     control_group == "hand"
                     and control_type not in self.hand_control_types
                 ):
-                    rospy.logwarn(
+                    self._node.get_logger().warn(
                         f"The Panda {control_group} control griyo was not switched to "
                         f"'{control_type}' as the {failed_controllers} controllers "
                         "could not be loaded."
@@ -430,12 +458,14 @@ class PandaControlSwitcher(object):
             switch_controller_msg.stop_controllers = running_controllers
 
         # Send switch_controller msgs.
-        rospy.logdebug(
+        self._node.get_logger().debug(
             f"Switching Panda {control_group} control group to '{control_type}'."
         )
-        retval = self._switch_controller_client(switch_controller_msg)
+        retval = self._call_service(
+            self._switch_controller_client, switch_controller_msg
+        )
         if retval.ok:
-            rospy.logdebug(
+            self._node.get_logger().debug(
                 f"Switching Panda {control_group} control group to "
                 f"'{control_type}' successful."
             )
@@ -445,7 +475,7 @@ class PandaControlSwitcher(object):
             ) or (
                 control_group == "hand" and control_type not in self.arm_control_types
             ):
-                rospy.logwarn(
+                self._node.get_logger().warn(
                     f"Switching Panda {control_group} control type to "
                     f"'{control_type}' failed."
                 )
