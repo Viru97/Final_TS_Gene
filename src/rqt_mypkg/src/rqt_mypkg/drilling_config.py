@@ -63,8 +63,8 @@ class DrillingConfig(QWidget):
         except ValueError:
             QMessageBox.warning(self, "Input Error", "Length and width must be numeric values.")
             return
-        command1 = ['rosrun', 'panda_gazebo', 'configure_geometry.py', str(length), str(width)]
-        # command2 = ['rosrun', 'panda_gazebo', 'configure_workpiece_position.py', str(position_index), str(yaw_radians)]
+        command1 = ['ros2', 'run', 'panda_gazebo', 'configure_geometry.py', str(length), str(width)]
+        # command2 = ['ros2', 'run', 'panda_gazebo', 'configure_workpiece_position.py', str(position_index), str(yaw_radians)]
         try:
             subprocess.run(command1, check=True)
             # subprocess.run(command2, check=True)
@@ -74,27 +74,27 @@ class DrillingConfig(QWidget):
     
     def randomize_geometry(self):
         try:
-            self.process1=subprocess.run(['rosrun', 'panda_gazebo', 'modify_geometry.py'])
+            self.process1=subprocess.run(['ros2', 'run', 'panda_gazebo', 'modify_geometry.py'])
             time.sleep(.01)
-            self.process2=subprocess.run(['rosrun', 'panda_gazebo', 'randomize_workpiece_position.py'], check=True)
+            self.process2=subprocess.run(['ros2', 'run', 'panda_gazebo', 'randomize_workpiece_position.py'], check=True)
         except   subprocess.CalledProcessError as e:
             print(f"Error launching Gazebo: {e}")
 
     def set_holes(self):
         try:
-            self.process1=subprocess.run(['rosrun', 'panda_gazebo', 'randomize_hole_position.py'])
+            self.process1=subprocess.run(['ros2', 'run', 'panda_gazebo', 'randomize_hole_position.py'])
         except   subprocess.CalledProcessError as e:
             print(f"Error launching Gazebo: {e}")
     
     def put_robot(self):
         try:
             subprocess.Popen(['rqt_plot'])
-            self.put_robot_in_gazebo = subprocess.Popen(['roslaunch', 'panda_gazebo', 'put_robot_in_world.launch','load_gripper:=false','gripper:=drill'])
+            self.put_robot_in_gazebo = subprocess.Popen(['ros2', 'launch', 'panda_gazebo', 'put_robot_in_world.launch.py','load_gripper:=false','gripper:=drill'])
         except   subprocess.CalledProcessError as e:
             print(f"Error launching Gazebo: {e}")
 
     def execute_drilling(self):
         try:
-            self.process1=subprocess.run(['rosrun', 'pick_and_place', 'drilling.py'])
+            self.process1=subprocess.run(['ros2', 'run', 'pick_and_place', 'drilling.py'])
         except   subprocess.CalledProcessError as e:
             print(f"Error launching Gazebo: {e}")

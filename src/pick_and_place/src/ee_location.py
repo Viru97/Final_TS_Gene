@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import math
 import numpy as np
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 import tf
 import tf2_ros
 from tf2_geometry_msgs import PointStamped
@@ -21,7 +21,7 @@ def dh_params(joint_variable):
                     [-M_PI/2,  -0.0825,   0.384,   joint_var[4]],
                     [ M_PI/2,   0,        0,       joint_var[5]],
                     [ M_PI/2,   0.088,    0.107,   joint_var[6]]])
-    rospy.loginfo("DH matrix:\n%s", dh)
+    ros.loginfo("DH matrix:\n%s", dh)
     return dh
     
 def TF_matrix(i,dh):
@@ -73,27 +73,27 @@ def calculate_end_effector_pose(joint_positions):
     
     point = PoseStamped()
     point.header.frame_id = source_frame
-    point.header.stamp = rospy.Time.now()
+    point.header.stamp = ros.Time.now()
     point.pose.position.x = panda_pose.position.x
     point.pose.position.y = panda_pose.position.y
     point.pose.position.z = panda_pose.position.z
     point.pose.orientation.w = 1.0
     try:
-        converted_point = tfBuffer.transform(point, source_frame, timeout=rospy.Duration(10.0))
+        converted_point = tfBuffer.transform(point, source_frame, timeout=ros.Duration(10.0))
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        rospy.logwarn("Transform lookup failed!")
+        ros.logwarn("Transform lookup failed!")
     print("End Effector Position (X, Y, Z):", converted_point.pose.position.x,converted_point.pose.position.y,converted_point.pose.position.z)   
     return converted_point.pose  
 
 def joint_state_callback(joint_state_msg):
     joint_positions = joint_state_msg.position
-    rospy.loginfo("Received joint positions: %s", joint_positions)
+    ros.loginfo("Received joint positions: %s", joint_positions)
     ee_pose = calculate_end_effector_pose(joint_positions)
-    # rospy.loginfo("End-effector pose in source frame:")
-    # rospy.loginfo(ee_pose)
+    # ros.loginfo("End-effector pose in source frame:")
+    # ros.loginfo(ee_pose)
 
 if __name__ == '__main__':
-    rospy.init_node('end_effector_localization')
-    rospy.Subscriber('/joint_states', JointState, joint_state_callback)
-    rospy.spin()        
+    ros.init_node('end_effector_localization')
+    ros.Subscriber('/joint_states', JointState, joint_state_callback)
+    ros.spin()        
     

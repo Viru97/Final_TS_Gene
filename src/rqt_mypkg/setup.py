@@ -1,9 +1,8 @@
-from distutils.core import setup
-from catkin_pkg.python_setup import generate_distutils_setup
-  
-d = generate_distutils_setup(
+from setuptools import setup
+
+setup(
+    name='rqt_mypkg',
+    version='0.0.0',
     packages=['rqt_mypkg'],
     package_dir={'': 'src'},
 )
-
-setup(**d)

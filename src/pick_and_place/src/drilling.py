@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 import moveit_commander
 from moveit_msgs.msg import RobotTrajectory
 from geometry_msgs.msg import Pose, Quaternion
@@ -92,10 +92,10 @@ def pickPose(move_group, direction, x, y, z):
 
 def main():
    
-    rospy.init_node('own_pick_place_V4', anonymous=True)
-    pub_speed = rospy.Publisher('speed', Float32, queue_size=10, latch=True)
-    pub_acc = rospy.Publisher('acceleration', Float32, queue_size=10, latch=True)
-    pub_plan = rospy.Publisher('planning_algorithm', String, queue_size=10, latch=True)
+    ros.init_node('own_pick_place_V4', anonymous=True)
+    pub_speed = ros.Publisher('speed', Float32, queue_size=10, latch=True)
+    pub_acc = ros.Publisher('acceleration', Float32, queue_size=10, latch=True)
+    pub_plan = ros.Publisher('planning_algorithm', String, queue_size=10, latch=True)
 
     moveit_commander.roscpp_initialize(sys.argv)
     robot = moveit_commander.RobotCommander()
@@ -132,20 +132,20 @@ def main():
     "BITstar"]
 
     planner = random.choice(planner_list)
-    rospy.logerr(f"Selected Planner: {planner}")
+    ros.logerr(f"Selected Planner: {planner}")
 
     # available_planners = move_group.get_interface_description().planner_ids
-    # rospy.logwarn(available_planners)
+    # ros.logwarn(available_planners)
     # if planner in available_planners:
     move_group.set_planner_id(planner)
-    rospy.logerr(f"Planner set to: {planner}")
+    ros.logerr(f"Planner set to: {planner}")
     # else:
-        # rospy.logerr(f"Planner {planner} not available. Using default planner.")
+        # ros.logerr(f"Planner {planner} not available. Using default planner.")
 
     velocity_factor = random.uniform(0.1, 0.5)
     acceleration_factor = random.uniform(0.1, 0.5)
-    rospy.logerr(f'velocity factor {velocity_factor}')
-    rospy.logerr(f'acceleration factor {acceleration_factor}')
+    ros.logerr(f'velocity factor {velocity_factor}')
+    ros.logerr(f'acceleration factor {acceleration_factor}')
 
     move_group.set_max_velocity_scaling_factor(velocity_factor)
     move_group.set_max_acceleration_scaling_factor(acceleration_factor)
@@ -165,7 +165,7 @@ def main():
         try:
             response= ModelState()
             response.pose = Pose()
-            get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+            get_model_state = ros.ServiceProxy('/gazebo/get_model_state', GetModelState)
             response = get_model_state(model_name, "world")
             if model_name == "hole_1":
                 hole1_x, hole1_y, hole1_z = response.pose.position.x, response.pose.position.y, response.pose.position.z
@@ -173,7 +173,7 @@ def main():
                 hole2_x, hole2_y, hole2_z = response.pose.position.x, response.pose.position.y, response.pose.position.z
             elif model_name == "hole_3":
                 hole3_x, hole3_y, hole3_z = response.pose.position.x, response.pose.position.y, response.pose.position.z
-        except rospy.ServiceException as e:
+        except ros.ServiceException as e:
             print("Service call failed:", e)
 
     time.sleep(1.0)
@@ -183,22 +183,22 @@ def main():
     time.sleep(1.0)
     pickPose(move_group, "up", hole1_x, hole1_y, hole1_z)
     initPose(move_group)
-    rospy.logwarn("round1 end")
+    ros.logwarn("round1 end")
 
     hoverPose(move_group, hole2_x, hole2_y, hole2_z + 0.15)
     pickPose(move_group, "down", hole2_x, hole2_y, hole2_z + 0.0)
     time.sleep(1.0)
     pickPose(move_group, "up", hole2_x, hole2_y, hole2_z)
     initPose(move_group)
-    rospy.logwarn("round2 end")
+    ros.logwarn("round2 end")
 
     hoverPose(move_group, hole3_x, hole3_y, hole3_z + 0.15)
     pickPose(move_group, "down", hole3_x, hole3_y, hole3_z + 0.0)
     time.sleep(1.0)
     pickPose(move_group, "up",  hole3_x, hole3_y, hole3_z)
     initPose(move_group)
-    rospy.logwarn("round3 end")
-    rospy.sleep(1.0)
+    ros.logwarn("round3 end")
+    ros.sleep(1.0)
 
 if __name__ == '__main__':
     main()

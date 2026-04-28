@@ -12,7 +12,7 @@ class RosrunControlPlugin(Plugin):
 
         self._layout = QVBoxLayout(self._widget)
 
-        # Create buttons for different rosrun commands
+        # Create buttons for different ros2 run commands
         self._button1 = QPushButton('Run Node 1', self._widget)
         self._button2 = QPushButton('Run Node 2', self._widget)
         # Add more buttons as needed
@@ -30,8 +30,8 @@ class RosrunControlPlugin(Plugin):
         context.add_widget(self._widget)
 
     def run_node_1(self):
-        subprocess.Popen(['rosrun', 'your_package_name', 'node_1'])
+        subprocess.Popen(['ros2', 'run', 'your_package_name', 'node_1'])
 
     def run_node_2(self):
-        subprocess.Popen(['rosrun', 'your_package_name', 'node_2'])
+        subprocess.Popen(['ros2', 'run', 'your_package_name', 'node_2'])
     # Add more functions for other buttons as needed

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-import rospy
+from panda_gazebo.common import rospy_shim as ros
 import moveit_commander
 from geometry_msgs.msg import Pose, Quaternion
 from moveit_msgs.msg import RobotTrajectory
@@ -101,10 +101,10 @@ def pickPose(move_group, direction, x, y, z):
 def main():
 
     moveit_commander.roscpp_initialize(sys.argv)
-    rospy.init_node('own_pick_place_V4', anonymous=True)
-    pub_speed = rospy.Publisher('speed', Float32, queue_size=10, latch=True)
-    pub_acc = rospy.Publisher('acceleration', Float32, queue_size=10, latch=True)
-    pub_plan = rospy.Publisher('planning_algorithm', String, queue_size=10, latch=True)
+    ros.init_node('own_pick_place_V4', anonymous=True)
+    pub_speed = ros.Publisher('speed', Float32, queue_size=10, latch=True)
+    pub_acc = ros.Publisher('acceleration', Float32, queue_size=10, latch=True)
+    pub_plan = ros.Publisher('planning_algorithm', String, queue_size=10, latch=True)
 
     robot = moveit_commander.RobotCommander()
     scene = moveit_commander.PlanningSceneInterface()
@@ -141,20 +141,20 @@ def main():
     ]
 
     planner = random.choice(planner_list)
-    rospy.logerr(f"Selected Planner: {planner}")
+    ros.logerr(f"Selected Planner: {planner}")
 
     # available_planners = move_group.get_interface_description().planner_ids
-    # rospy.logwarn(available_planners)
+    # ros.logwarn(available_planners)
     # if planner in available_planners:
     group_arm.set_planner_id(planner)
-    rospy.logerr(f"Planner set to: {planner}")
+    ros.logerr(f"Planner set to: {planner}")
     # else:
-        # rospy.logerr(f"Planner {planner} not available. Using default planner.")
+        # ros.logerr(f"Planner {planner} not available. Using default planner.")
 
     velocity_factor = random.uniform(0.1, 0.5)
     acceleration_factor = random.uniform(0.1, 0.5)
-    rospy.logerr(f'velocity factor {velocity_factor}')
-    rospy.logerr(f'acceleration factor {acceleration_factor}')
+    ros.logerr(f'velocity factor {velocity_factor}')
+    ros.logerr(f'acceleration factor {acceleration_factor}')
 
     group_arm.set_max_velocity_scaling_factor(velocity_factor)
     group_arm.set_max_acceleration_scaling_factor(acceleration_factor)
@@ -177,21 +177,21 @@ def main():
     # Get current position from Gazebo
     model_name = "welding_line"
     response=ModelState()
-    get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+    get_model_state = ros.ServiceProxy('/gazebo/get_model_state', GetModelState)
     response = get_model_state(model_name, "world")
     x, y, z = response.pose.position.x, response.pose.position.y, response.pose.position.z
     yaw=yaw = math.atan2(2 * (response.pose.orientation.w * response.pose.orientation.z), 1 - 2 * (response.pose.orientation.z ** 2))
     
     dimension= get_model_dimensions("/home/baua/Final_TS_Gene/src/panda_gazebo/resources/models/welding_line/model.sdf")
     length, width, height = dimension
-    # rospy.loginfo("Length of the welding line: {} {}".format(length,yaw))
+    # ros.loginfo("Length of the welding line: {} {}".format(length,yaw))
     
     # Calculate the start & end position of the line segment
     start_x,start_y,start_z = transform_from_local_to_world((-length/2,0.0,0.0),(x,y,z,0,0,yaw))
     end_x, end_y, end_z = transform_from_local_to_world((length/2,0.0,0.0),(x,y,z,0,0,yaw))
     
-    # rospy.loginfo("Start position (x, y, z): ({}, {}, {})".format(start_x, start_y, start_z))
-    # rospy.loginfo("End position (x, y, z): ({}, {}, {})".format(end_x, end_y, end_z))
+    # ros.loginfo("Start position (x, y, z): ({}, {}, {})".format(start_x, start_y, start_z))
+    # ros.loginfo("End position (x, y, z): ({}, {}, {})".format(end_x, end_y, end_z))
     
     # Perform welding operation
     hoverPose(group_arm, start_x+0.00, start_y, (start_z + 0.127))
@@ -211,10 +211,10 @@ def main():
     #     hoverPose(group_arm, waypoint_x, waypoint_y, waypoint_z)
 
     pickPose(group_arm, "up", end_x+0.00, end_y,(end_z + 0.127))
-    rospy.sleep(1.0)  # Delay for 2 seconds
+    ros.sleep(1.0)  # Delay for 2 seconds
     initPose(group_arm) 
-    rospy.sleep(3.0)  # Delay for 3 seconds
-    rospy.logwarn("Round end")
+    ros.sleep(3.0)  # Delay for 3 seconds
+    ros.logwarn("Round end")
 
     moveit_commander.roscpp_shutdown()
 

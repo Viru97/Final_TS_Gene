@@ -75,7 +75,7 @@ class SceneGenerationHMIPlugin(Plugin):
         self.kill_gazebo_button.show()
         # Launch Gazebo
         try:
-            self.gazebo_process = subprocess.Popen(['roslaunch', 'panda_gazebo', 'start_workscene.launch'])
+            self.gazebo_process = subprocess.Popen(['ros2', 'launch', 'panda_gazebo', 'start_workscene.launch.py'])
         except subprocess.CalledProcessError as e:
             print(f"Error launching Gazebo: {e}")
         drilling_config = DrillingConfig()
