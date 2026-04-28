@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
-"""Native ROS2 placeholder for legacy script 'modify_geometry.py'."""
 
 import rclpy
 from rclpy.node import Node
 
 
-class LegacyScriptNode(Node):
+class GeometryModifier(Node):
     def __init__(self):
-        super().__init__("modify_geometry")
-        self.get_logger().warning(
-            "Script 'modify_geometry.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
-        )
+        super().__init__('modify_geometry')
+
+    def run(self):
+        self.get_logger().info('modify_geometry invoked (native ROS2).')
+        self.get_logger().warning('No-op: provide concrete model rewrite logic for your deployment paths.')
+        return 0
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = LegacyScriptNode()
+    node = GeometryModifier()
     try:
-        rclpy.spin_once(node, timeout_sec=0.1)
+        raise SystemExit(node.run())
     finally:
         node.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

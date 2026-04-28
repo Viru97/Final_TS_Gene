@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
-"""Native ROS2 placeholder for legacy script 'configure_geometry.py'."""
+
+import sys
 
 import rclpy
 from rclpy.node import Node
 
 
-class LegacyScriptNode(Node):
+class GeometryConfigurator(Node):
     def __init__(self):
-        super().__init__("configure_geometry")
-        self.get_logger().warning(
-            "Script 'configure_geometry.py' was a legacy ROS1/shim implementation and now requires a dedicated ROS2 rewrite."
+        super().__init__('configure_geometry')
+
+    def run(self, length, width):
+        self.get_logger().info(
+            f"Requested workpiece geometry update: length={length:.3f}, width={width:.3f}"
         )
+        self.get_logger().warning(
+            'Model geometry mutation is environment-specific and must be implemented for your model source path.'
+        )
+        return 0
 
 
 def main(args=None):
+    argv = sys.argv[1:]
+    if len(argv) != 2:
+        print('Usage: configure_geometry.py <length> <width>')
+        raise SystemExit(2)
+
     rclpy.init(args=args)
-    node = LegacyScriptNode()
+    node = GeometryConfigurator()
     try:
-        rclpy.spin_once(node, timeout_sec=0.1)
+        raise SystemExit(node.run(float(argv[0]), float(argv[1])))
     finally:
         node.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -95,6 +95,6 @@ class DrillingConfig(QWidget):
 
     def execute_drilling(self):
         try:
-            self.process1=subprocess.run(['ros2', 'run', 'pick_and_place', 'drilling.py'])
+            self.process1=subprocess.run(['ros2', 'run', 'pick_and_place', 'pick_and_place_opencv'])
         except   subprocess.CalledProcessError as e:
             print(f"Error launching Gazebo: {e}")
