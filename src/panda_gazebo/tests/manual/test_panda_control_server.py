@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Script used to manually test the '/panda_control_server' control services."""
 
-import actionlib
-import rospy
+from panda_gazebo.common import actionlib_shim as actionlib
+from panda_gazebo.common import rospy_shim as rospy
 from std_msgs.msg import Header
 from trajectory_msgs.msg import JointTrajectoryPoint
 

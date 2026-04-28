@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """This script can be used to manually test the 'panda_moveit_server' services"""
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 from geometry_msgs.msg import Pose, Quaternion
 
 from panda_gazebo.msg import BoundingRegion

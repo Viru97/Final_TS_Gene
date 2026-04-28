@@ -5,7 +5,7 @@ import sys
 
 import moveit_commander
 import moveit_msgs.msg
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from std_msgs.msg import Header
 

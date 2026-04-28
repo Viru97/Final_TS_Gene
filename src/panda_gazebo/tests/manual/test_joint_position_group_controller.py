@@ -4,7 +4,7 @@ a sinusoid command to one of the panda joints using the position joint group con
 import time
 
 import numpy as np
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 from std_msgs.msg import Float64MultiArray
 
 if __name__ == "__main__":

@@ -2,9 +2,9 @@
 """Small script that sends a sinusoid command to one of the panda joints."""
 import time
 
-import actionlib
+from panda_gazebo.common import actionlib_shim as actionlib
 import numpy as np
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header

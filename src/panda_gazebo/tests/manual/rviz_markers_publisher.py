@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Small python script that publishes a marker."""
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 

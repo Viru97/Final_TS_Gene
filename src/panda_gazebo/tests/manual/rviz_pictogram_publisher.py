@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Small example python script that publishes a pictogram."""
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 
 # from random import random, choice
 from geometry_msgs.msg import Point

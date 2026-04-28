@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Small script that can be used to test the effort_joint_trajectory_controller."""
 
-import actionlib
-import rospy
+from panda_gazebo.common import actionlib_shim as actionlib
+from panda_gazebo.common import rospy_shim as rospy
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 from std_msgs.msg import Header
 from trajectory_msgs.msg import JointTrajectoryPoint

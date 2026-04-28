@@ -2,7 +2,7 @@
 """Small example python script that publishes a OverlayText."""
 import math
 
-import rospy
+from panda_gazebo.common import rospy_shim as rospy
 
 # from random import random, choice
 from geometry_msgs.msg import Point
