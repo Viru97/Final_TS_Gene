@@ -5,13 +5,11 @@
 from datetime import datetime
 from pathlib import Path
 
-import catkin_pkg.package
 
 # -- Retrieve package version ------------------------------------------------
-catkin_dir = Path(__file__).parent.joinpath("../..").resolve()
-catkin_package = catkin_pkg.package.parse_package(
-    catkin_dir.joinpath(catkin_pkg.package.PACKAGE_MANIFEST_FILENAME)
-)
+repo_root = Path(__file__).parent.joinpath("../..").resolve()
+release = "2.7.8"
+version = ".".join(release.split(".")[:3])
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -19,8 +17,6 @@ project = "Panda Gazebo"
 copyright = f"{datetime.now().year}, Rick Staa"
 author = "Rick Staa"
 git_user_name = "rickstaa"
-release = catkin_package.version
-version = ".".join(release.split(".")[:3])
 print("Doc release: ", release)
 print("Doc version: ", version)
 
@@ -47,11 +43,7 @@ autoapi_dirs = [
     "../../src/panda_gazebo",
     "../../nodes",
     "../../scripts",
-    str(
-        catkin_dir.joinpath(
-            "../../../devel/lib/python3/dist-packages/panda_gazebo"
-        ).resolve()
-    ),
+    str(repo_root.joinpath("src").resolve()),
 ]
 myst_heading_anchors = 2  # Add anchors to headings.
 
